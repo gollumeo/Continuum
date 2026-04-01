@@ -6,6 +6,7 @@
 # Local environment and tool artifacts
 /.opencode/
 /_bmad/
+/project-directives/
 
 # Editor/OS noise
 /.DS_Store
