@@ -1,0 +1,15 @@
+/target/
+
+# Rust compiler backups
+**/*.rs.bk
+
+# Local environment and tool artifacts
+/.opencode/
+/_bmad/
+
+# Editor/OS noise
+/.DS_Store
+/.idea/
+/.vscode/
+*.swp
+*.swo
