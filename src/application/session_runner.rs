@@ -54,7 +54,12 @@ impl SessionRunner {
         if initial_decision == crate::application::session_flow_decision::SessionFlowDecision::Build {
             self.builder.run(&scholar_output);
 
-            if self.critic.run(&scholar_output).is_err() {
+            let critic_signal = self.critic.run(&scholar_output);
+
+            if matches!(
+                critic_signal,
+                crate::application::critic_signal::CriticSignal::Stop
+            ) {
                 self.session.mark_stopped().ok();
 
                 return Err(FailureReport {
@@ -62,17 +67,40 @@ impl SessionRunner {
                 });
             }
 
-            let final_decision = self.planner.decide(&scholar_output);
+            let mut final_decision = self
+                .planner
+                .decide_with_critic_signal(&scholar_output, critic_signal);
 
-            if final_decision
+            while final_decision
                 == crate::application::session_flow_decision::SessionFlowDecision::Retry
-                && self.retry_budget_remaining == 0
             {
-                self.session.mark_stopped().ok();
+                if self.retry_budget_remaining == 0 {
+                    self.session.mark_stopped().ok();
 
-                return Err(FailureReport {
-                    final_session_status: self.session.status,
-                });
+                    return Err(FailureReport {
+                        final_session_status: self.session.status,
+                    });
+                }
+
+                self.retry_budget_remaining -= 1;
+                self.builder.run(&scholar_output);
+
+                let retry_critic_signal = self.critic.run(&scholar_output);
+
+                if matches!(
+                    retry_critic_signal,
+                    crate::application::critic_signal::CriticSignal::Stop
+                ) {
+                    self.session.mark_stopped().ok();
+
+                    return Err(FailureReport {
+                        final_session_status: self.session.status,
+                    });
+                }
+
+                final_decision = self
+                    .planner
+                    .decide_with_critic_signal(&scholar_output, retry_critic_signal);
             }
 
             if final_decision

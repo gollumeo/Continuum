@@ -1,4 +1,6 @@
+use continuum::application::actors::Critic;
 use continuum::application::critic_signal::CriticSignal;
+use continuum::ScholarOutput;
 
 #[test]
 fn critic_signal_explicitly_models_minimal_runtime_review_outcomes() {
@@ -9,4 +11,16 @@ fn critic_signal_explicitly_models_minimal_runtime_review_outcomes() {
     assert!(matches!(accepted, CriticSignal::Accepted));
     assert!(matches!(revision_required, CriticSignal::RevisionRequired));
     assert!(matches!(stop, CriticSignal::Stop));
+}
+
+fn critic_run_signal(
+    critic: &mut dyn Critic,
+    scholar_output: &ScholarOutput,
+) -> CriticSignal {
+    critic.run(scholar_output)
+}
+
+#[test]
+fn critic_contract_explicitly_returns_runtime_signal() {
+    let _ = critic_run_signal;
 }

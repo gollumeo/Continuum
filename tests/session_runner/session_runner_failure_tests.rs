@@ -2,10 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::application::actors::{Builder, Critic, Planner, Scholar};
+use continuum::application::critic_signal::CriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{
-    AgentRole, ScholarOutput, FailureReport, SessionRunner, SessionStatus, Verdict, VerdictError,
-};
+use continuum::{AgentRole, FailureReport, ScholarOutput, SessionRunner, SessionStatus};
 
 struct RecordingScholar {
     activations: Rc<RefCell<Vec<AgentRole>>>,
@@ -32,6 +31,15 @@ impl Planner for RecordingPlanner {
         self.activations.borrow_mut().push(AgentRole::Planner);
         self.decisions.remove(0)
     }
+
+    fn decide_with_critic_signal(
+        &mut self,
+        _scholar_output: &ScholarOutput,
+        _critic_signal: CriticSignal,
+    ) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.decisions.remove(0)
+    }
 }
 
 struct RecordingBuilder {
@@ -49,10 +57,10 @@ struct InvalidReviseCritic {
 }
 
 impl Critic for InvalidReviseCritic {
-    fn run(&mut self, _scholar_output: &ScholarOutput) -> Result<(), VerdictError> {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
         self.activations.borrow_mut().push(AgentRole::Critic);
 
-        Verdict::revise(Vec::new()).map(|_| ())
+        CriticSignal::Stop
     }
 }
 
@@ -61,10 +69,57 @@ struct RecordingCritic {
 }
 
 impl Critic for RecordingCritic {
-    fn run(&mut self, _scholar_output: &ScholarOutput) -> Result<(), VerdictError> {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
         self.activations.borrow_mut().push(AgentRole::Critic);
 
-        Ok(())
+        CriticSignal::Accepted
+    }
+}
+
+struct RevisionAwarePlanner {
+    activations: Rc<RefCell<Vec<AgentRole>>>,
+}
+
+impl Planner for RevisionAwarePlanner {
+    fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+        SessionFlowDecision::Build
+    }
+
+    fn decide_with_critic_signal(
+        &mut self,
+        _scholar_output: &ScholarOutput,
+        critic_signal: CriticSignal,
+    ) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+
+        match critic_signal {
+            CriticSignal::RevisionRequired => SessionFlowDecision::Retry,
+            CriticSignal::Accepted | CriticSignal::Stop => SessionFlowDecision::Complete,
+        }
+    }
+}
+
+struct RevisionRequestingCritic {
+    activations: Rc<RefCell<Vec<AgentRole>>>,
+}
+
+impl Critic for RevisionRequestingCritic {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
+        self.activations.borrow_mut().push(AgentRole::Critic);
+        CriticSignal::RevisionRequired
+    }
+}
+
+struct RepeatedRevisionCritic {
+    activations: Rc<RefCell<Vec<AgentRole>>>,
+    signals: Vec<CriticSignal>,
+}
+
+impl Critic for RepeatedRevisionCritic {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
+        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.signals.remove(0)
     }
 }
 
@@ -232,5 +287,164 @@ fn stops_when_planner_requests_retry_without_budget() {
             .filter(|role| **role == AgentRole::Builder)
             .count(),
         1
+    );
+}
+
+#[test]
+fn stops_when_revision_requires_retry_but_no_budget_is_available() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        0,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionAwarePlanner {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionRequestingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+    let recorded_activations = activations.borrow().clone();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(
+        recorded_activations,
+        vec![
+            AgentRole::Scholar,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+        ]
+    );
+    assert_eq!(
+        recorded_activations
+            .iter()
+            .filter(|role| **role == AgentRole::Builder)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn stops_after_consuming_last_retry_budget_when_revision_is_requested_again() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        1,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionAwarePlanner {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RepeatedRevisionCritic {
+            activations: Rc::clone(&activations),
+            signals: vec![CriticSignal::RevisionRequired, CriticSignal::RevisionRequired],
+        }),
+    );
+
+    let result = runner.run();
+    let recorded_activations = activations.borrow().clone();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(
+        recorded_activations,
+        vec![
+            AgentRole::Scholar,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+        ]
+    );
+    assert_eq!(
+        recorded_activations
+            .iter()
+            .filter(|role| **role == AgentRole::Builder)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn stops_after_third_revision_request_when_retry_budget_of_two_is_fully_consumed() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        2,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionAwarePlanner {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RepeatedRevisionCritic {
+            activations: Rc::clone(&activations),
+            signals: vec![
+                CriticSignal::RevisionRequired,
+                CriticSignal::RevisionRequired,
+                CriticSignal::RevisionRequired,
+            ],
+        }),
+    );
+
+    let result = runner.run();
+    let recorded_activations = activations.borrow().clone();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(
+        recorded_activations,
+        vec![
+            AgentRole::Scholar,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+        ]
+    );
+    assert_eq!(
+        recorded_activations
+            .iter()
+            .filter(|role| **role == AgentRole::Builder)
+            .count(),
+        3
     );
 }

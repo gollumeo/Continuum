@@ -2,10 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::application::actors::{Builder, Critic, Planner, Scholar};
+use continuum::application::critic_signal::CriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{
-    AgentRole, ScholarOutput, SessionRunner, SessionStatus, SessionSummary, VerdictError,
-};
+use continuum::{AgentRole, ScholarOutput, SessionRunner, SessionStatus, SessionSummary};
 
 struct RecordingScholar {
     activations: Rc<RefCell<Vec<AgentRole>>>,
@@ -32,6 +31,15 @@ impl Planner for RecordingPlanner {
         self.activations.borrow_mut().push(AgentRole::Planner);
         self.decisions.remove(0)
     }
+
+    fn decide_with_critic_signal(
+        &mut self,
+        _scholar_output: &ScholarOutput,
+        _critic_signal: CriticSignal,
+    ) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.decisions.remove(0)
+    }
 }
 
 struct RecordingBuilder {
@@ -49,10 +57,47 @@ struct RecordingCritic {
 }
 
 impl Critic for RecordingCritic {
-    fn run(&mut self, _scholar_output: &ScholarOutput) -> Result<(), VerdictError> {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
         self.activations.borrow_mut().push(AgentRole::Critic);
 
-        Ok(())
+        CriticSignal::Accepted
+    }
+}
+
+struct RevisionAwarePlanner {
+    activations: Rc<RefCell<Vec<AgentRole>>>,
+}
+
+impl Planner for RevisionAwarePlanner {
+    fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+        SessionFlowDecision::Build
+    }
+
+    fn decide_with_critic_signal(
+        &mut self,
+        _scholar_output: &ScholarOutput,
+        critic_signal: CriticSignal,
+    ) -> SessionFlowDecision {
+        self.activations.borrow_mut().push(AgentRole::Planner);
+
+        match critic_signal {
+            CriticSignal::RevisionRequired => SessionFlowDecision::Retry,
+            CriticSignal::Accepted => SessionFlowDecision::Complete,
+            CriticSignal::Stop => SessionFlowDecision::Complete,
+        }
+    }
+}
+
+struct RevisionThenAcceptedCritic {
+    activations: Rc<RefCell<Vec<AgentRole>>>,
+    signals: Vec<CriticSignal>,
+}
+
+impl Critic for RevisionThenAcceptedCritic {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
+        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.signals.remove(0)
     }
 }
 
@@ -135,5 +180,38 @@ fn returns_session_summary_on_success() {
         SessionSummary {
             final_session_status: SessionStatus::Completed,
         }
+    );
+}
+
+#[test]
+fn runs_builder_a_second_time_when_first_critique_requests_revision() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        1,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionAwarePlanner {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionThenAcceptedCritic {
+            activations: Rc::clone(&activations),
+            signals: vec![CriticSignal::RevisionRequired, CriticSignal::Accepted],
+        }),
+    );
+
+    let _ = runner.run();
+
+    assert_eq!(
+        activations
+            .borrow()
+            .iter()
+            .filter(|role| **role == AgentRole::Builder)
+            .count(),
+        2
     );
 }
