@@ -1,4 +1,5 @@
 pub mod actors;
+pub mod critic_signal;
 pub mod planner;
 pub mod scholar;
 pub mod session_runner;
