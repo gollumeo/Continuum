@@ -1,0 +1,71 @@
+[package]
+name = "continuum"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "task_contract_tests"
+path = "tests/domain/task_contract_tests.rs"
+
+[[test]]
+name = "verdict_tests"
+path = "tests/domain/verdict_tests.rs"
+
+[[test]]
+name = "session_tests"
+path = "tests/domain/session_tests.rs"
+
+[[test]]
+name = "raw_mission_tests"
+path = "tests/domain/raw_mission_tests.rs"
+
+[[test]]
+name = "scholar_output_tests"
+path = "tests/domain/scholar_output_tests.rs"
+
+[[test]]
+name = "scholar_tests"
+path = "tests/domain/scholar_tests.rs"
+
+[[test]]
+name = "planner_decision_tests"
+path = "tests/domain/planner_decision_tests.rs"
+
+[[test]]
+name = "planner_tests"
+path = "tests/domain/planner_tests.rs"
+
+[[test]]
+name = "session_e2e_scholar_planner_handoff_tests"
+path = "tests/e2e/session_e2e_scholar_planner_handoff_tests.rs"
+
+[[test]]
+name = "state_machine_transition_tests"
+path = "tests/state_machine/state_machine_transition_tests.rs"
+
+[[test]]
+name = "state_machine_guard_tests"
+path = "tests/state_machine/state_machine_guard_tests.rs"
+
+[[test]]
+name = "session_runner_happy_path_tests"
+path = "tests/session_runner/session_runner_happy_path_tests.rs"
+
+[[test]]
+name = "session_runner_failure_tests"
+path = "tests/session_runner/session_runner_failure_tests.rs"
+
+[[test]]
+name = "session_e2e_happy_path_tests"
+path = "tests/e2e/session_e2e_happy_path_tests.rs"
+
+[[test]]
+name = "session_e2e_stop_tests"
+path = "tests/e2e/session_e2e_stop_tests.rs"
+
+[[test]]
+name = "session_e2e_with_data_tests"
+path = "tests/e2e/session_e2e_with_data_tests.rs"
