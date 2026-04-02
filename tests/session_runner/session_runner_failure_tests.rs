@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use continuum::application::actors::{Builder, Critic, Planner, Scholar};
 use continuum::application::critic_signal::CriticSignal;
+use continuum::application::post_critic_signal::PostCriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
 use continuum::{AgentRole, FailureReport, ScholarOutput, SessionRunner, SessionStatus};
 
@@ -35,7 +36,7 @@ impl Planner for RecordingPlanner {
     fn decide_with_critic_signal(
         &mut self,
         _scholar_output: &ScholarOutput,
-        _critic_signal: CriticSignal,
+        _critic_signal: PostCriticSignal,
     ) -> SessionFlowDecision {
         self.activations.borrow_mut().push(AgentRole::Planner);
         self.decisions.remove(0)
@@ -89,13 +90,13 @@ impl Planner for RevisionAwarePlanner {
     fn decide_with_critic_signal(
         &mut self,
         _scholar_output: &ScholarOutput,
-        critic_signal: CriticSignal,
+        critic_signal: PostCriticSignal,
     ) -> SessionFlowDecision {
         self.activations.borrow_mut().push(AgentRole::Planner);
 
         match critic_signal {
-            CriticSignal::RevisionRequired => SessionFlowDecision::Retry,
-            CriticSignal::Accepted | CriticSignal::Stop => SessionFlowDecision::Complete,
+            PostCriticSignal::RevisionRequired => SessionFlowDecision::Retry,
+            PostCriticSignal::Accepted => SessionFlowDecision::Complete,
         }
     }
 }

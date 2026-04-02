@@ -1,5 +1,5 @@
 use continuum::application::actors::{Planner, PostCriticPlanner};
-use continuum::application::critic_signal::CriticSignal;
+use continuum::application::post_critic_signal::PostCriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
 use continuum::ScholarOutput;
 
@@ -13,11 +13,11 @@ impl Planner for CompletingPlanner {
     fn decide_with_critic_signal(
         &mut self,
         _scholar_output: &ScholarOutput,
-        critic_signal: CriticSignal,
+        critic_signal: PostCriticSignal,
     ) -> SessionFlowDecision {
         match critic_signal {
-            CriticSignal::RevisionRequired => SessionFlowDecision::Retry,
-            CriticSignal::Accepted | CriticSignal::Stop => SessionFlowDecision::Complete,
+            PostCriticSignal::RevisionRequired => SessionFlowDecision::Retry,
+            PostCriticSignal::Accepted => SessionFlowDecision::Complete,
         }
     }
 }
@@ -26,7 +26,7 @@ fn planner_retry_after_revision_signal(
     planner: &mut dyn Planner,
     scholar_output: &ScholarOutput,
 ) -> SessionFlowDecision {
-    planner.decide_with_critic_signal(scholar_output, CriticSignal::RevisionRequired)
+    planner.decide_with_critic_signal(scholar_output, PostCriticSignal::RevisionRequired)
 }
 
 #[test]
@@ -50,19 +50,10 @@ fn production_post_critic_runtime_semantics_are_explicit_in_application() {
     let mut planner = PostCriticPlanner;
 
     let accepted_decision =
-        planner.decide_with_critic_signal(&scholar_output, CriticSignal::Accepted);
+        planner.decide_with_critic_signal(&scholar_output, PostCriticSignal::Accepted);
     let revision_decision =
-        planner.decide_with_critic_signal(&scholar_output, CriticSignal::RevisionRequired);
+        planner.decide_with_critic_signal(&scholar_output, PostCriticSignal::RevisionRequired);
 
     assert_eq!(accepted_decision, SessionFlowDecision::Complete);
     assert_eq!(revision_decision, SessionFlowDecision::Retry);
-}
-
-#[test]
-#[should_panic]
-fn production_post_critic_runtime_semantics_reject_stop_as_a_local_planner_decision() {
-    let scholar_output = ScholarOutput::new("mission summary", "task scope");
-    let mut planner = PostCriticPlanner;
-
-    let _ = planner.decide_with_critic_signal(&scholar_output, CriticSignal::Stop);
 }

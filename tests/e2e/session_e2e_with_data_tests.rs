@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::application::actors::{Builder, Critic, Planner, Scholar};
+use continuum::application::critic_signal::CriticSignal;
+use continuum::application::post_critic_signal::PostCriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{
-    AgentRole, ScholarOutput, SessionRunner, SessionStatus, SessionSummary, VerdictError,
-};
+use continuum::{AgentRole, ScholarOutput, SessionRunner, SessionStatus, SessionSummary};
 
 struct RecordingScholar {
     activations: Rc<RefCell<Vec<AgentRole>>>,
@@ -45,6 +45,14 @@ impl Planner for DataAwarePlanner {
             SessionFlowDecision::Complete
         }
     }
+
+    fn decide_with_critic_signal(
+        &mut self,
+        scholar_output: &ScholarOutput,
+        _critic_signal: PostCriticSignal,
+    ) -> SessionFlowDecision {
+        self.decide(scholar_output)
+    }
 }
 
 struct RecordingBuilder {
@@ -67,13 +75,13 @@ struct RecordingCritic {
 }
 
 impl Critic for RecordingCritic {
-    fn run(&mut self, scholar_output: &ScholarOutput) -> Result<(), VerdictError> {
+    fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
         self.activations.borrow_mut().push(AgentRole::Critic);
         self.observed_data
             .borrow_mut()
             .push(format!("critic:{}", scholar_output.mission_summary));
 
-        Ok(())
+        CriticSignal::Accepted
     }
 }
 

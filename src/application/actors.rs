@@ -1,4 +1,5 @@
 use crate::application::critic_signal::CriticSignal;
+use crate::application::post_critic_signal::PostCriticSignal;
 use crate::domain::ScholarOutput;
 
 pub trait Scholar {
@@ -14,7 +15,7 @@ pub trait Planner {
     fn decide_with_critic_signal(
         &mut self,
         scholar_output: &ScholarOutput,
-        critic_signal: CriticSignal,
+        critic_signal: PostCriticSignal,
     ) -> crate::application::session_flow_decision::SessionFlowDecision;
 }
 
@@ -31,16 +32,15 @@ impl Planner for PostCriticPlanner {
     fn decide_with_critic_signal(
         &mut self,
         _scholar_output: &ScholarOutput,
-        critic_signal: CriticSignal,
+        critic_signal: PostCriticSignal,
     ) -> crate::application::session_flow_decision::SessionFlowDecision {
         match critic_signal {
-            CriticSignal::Accepted => {
+            PostCriticSignal::Accepted => {
                 crate::application::session_flow_decision::SessionFlowDecision::Complete
             }
-            CriticSignal::RevisionRequired => {
+            PostCriticSignal::RevisionRequired => {
                 crate::application::session_flow_decision::SessionFlowDecision::Retry
             }
-            CriticSignal::Stop => panic!("stop is not a local planner decision"),
         }
     }
 }

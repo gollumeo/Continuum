@@ -1,4 +1,6 @@
 use crate::application::actors::{Builder, Critic, Planner, Scholar};
+use crate::application::critic_signal::CriticSignal;
+use crate::application::post_critic_signal::PostCriticSignal;
 use crate::domain::*;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -56,20 +58,22 @@ impl SessionRunner {
 
             let critic_signal = self.critic.run(&scholar_output);
 
-            if matches!(
-                critic_signal,
-                crate::application::critic_signal::CriticSignal::Stop
-            ) {
-                self.session.mark_stopped().ok();
+            let mut final_decision = match critic_signal {
+                CriticSignal::Stop => {
+                    self.session.mark_stopped().ok();
 
-                return Err(FailureReport {
-                    final_session_status: self.session.status,
-                });
-            }
-
-            let mut final_decision = self
-                .planner
-                .decide_with_critic_signal(&scholar_output, critic_signal);
+                    return Err(FailureReport {
+                        final_session_status: self.session.status,
+                    });
+                }
+                CriticSignal::Accepted => self
+                    .planner
+                    .decide_with_critic_signal(&scholar_output, PostCriticSignal::Accepted),
+                CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
+                    &scholar_output,
+                    PostCriticSignal::RevisionRequired,
+                ),
+            };
 
             while final_decision
                 == crate::application::session_flow_decision::SessionFlowDecision::Retry
@@ -87,20 +91,22 @@ impl SessionRunner {
 
                 let retry_critic_signal = self.critic.run(&scholar_output);
 
-                if matches!(
-                    retry_critic_signal,
-                    crate::application::critic_signal::CriticSignal::Stop
-                ) {
-                    self.session.mark_stopped().ok();
+                final_decision = match retry_critic_signal {
+                    CriticSignal::Stop => {
+                        self.session.mark_stopped().ok();
 
-                    return Err(FailureReport {
-                        final_session_status: self.session.status,
-                    });
-                }
-
-                final_decision = self
-                    .planner
-                    .decide_with_critic_signal(&scholar_output, retry_critic_signal);
+                        return Err(FailureReport {
+                            final_session_status: self.session.status,
+                        });
+                    }
+                    CriticSignal::Accepted => self
+                        .planner
+                        .decide_with_critic_signal(&scholar_output, PostCriticSignal::Accepted),
+                    CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
+                        &scholar_output,
+                        PostCriticSignal::RevisionRequired,
+                    ),
+                };
             }
 
             if final_decision
