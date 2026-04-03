@@ -53,45 +53,13 @@ impl SessionRunner {
         let scholar_output = self.scholar.run();
         let initial_decision = self.planner.decide(&scholar_output);
 
-        if initial_decision == crate::application::session_flow_decision::SessionFlowDecision::Build {
-            self.builder.run(&scholar_output);
-
-            let critic_signal = self.critic.run(&scholar_output);
-
-            let mut final_decision = match critic_signal {
-                CriticSignal::Stop => {
-                    self.session.mark_stopped().ok();
-
-                    return Err(FailureReport {
-                        final_session_status: self.session.status,
-                    });
-                }
-                CriticSignal::Accepted => self
-                    .planner
-                    .decide_with_critic_signal(&scholar_output, PostCriticSignal::Accepted),
-                CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
-                    &scholar_output,
-                    PostCriticSignal::RevisionRequired,
-                ),
-            };
-
-            while final_decision
-                == crate::application::session_flow_decision::SessionFlowDecision::Retry
-            {
-                if self.retry_budget_remaining == 0 {
-                    self.session.mark_stopped().ok();
-
-                    return Err(FailureReport {
-                        final_session_status: self.session.status,
-                    });
-                }
-
-                self.retry_budget_remaining -= 1;
+        match initial_decision {
+            crate::application::session_flow_decision::SessionFlowDecision::Build => {
                 self.builder.run(&scholar_output);
 
-                let retry_critic_signal = self.critic.run(&scholar_output);
+                let critic_signal = self.critic.run(&scholar_output);
 
-                final_decision = match retry_critic_signal {
+                let mut final_decision = match critic_signal {
                     CriticSignal::Stop => {
                         self.session.mark_stopped().ok();
 
@@ -107,14 +75,56 @@ impl SessionRunner {
                         PostCriticSignal::RevisionRequired,
                     ),
                 };
-            }
 
-            if final_decision
-                == crate::application::session_flow_decision::SessionFlowDecision::Complete
-            {
-                self.session.mark_completed().map_err(|_| FailureReport {
+                while final_decision
+                    == crate::application::session_flow_decision::SessionFlowDecision::Retry
+                {
+                    if self.retry_budget_remaining == 0 {
+                        self.session.mark_stopped().ok();
+
+                        return Err(FailureReport {
+                            final_session_status: self.session.status,
+                        });
+                    }
+
+                    self.retry_budget_remaining -= 1;
+                    self.builder.run(&scholar_output);
+
+                    let retry_critic_signal = self.critic.run(&scholar_output);
+
+                    final_decision = match retry_critic_signal {
+                        CriticSignal::Stop => {
+                            self.session.mark_stopped().ok();
+
+                            return Err(FailureReport {
+                                final_session_status: self.session.status,
+                            });
+                        }
+                        CriticSignal::Accepted => self.planner.decide_with_critic_signal(
+                            &scholar_output,
+                            PostCriticSignal::Accepted,
+                        ),
+                        CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
+                            &scholar_output,
+                            PostCriticSignal::RevisionRequired,
+                        ),
+                    };
+                }
+
+                if final_decision
+                    == crate::application::session_flow_decision::SessionFlowDecision::Complete
+                {
+                    self.session.mark_completed().map_err(|_| FailureReport {
+                        final_session_status: self.session.status,
+                    })?;
+                }
+            }
+            _ => {
+                self.session.mark_stopped().ok();
+
+                return Err(FailureReport {
                     final_session_status: self.session.status,
-                })?;
+                });
             }
         }
 

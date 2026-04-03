@@ -125,6 +125,76 @@ impl Critic for RepeatedRevisionCritic {
 }
 
 #[test]
+fn stops_when_initial_planner_decision_is_not_admitted_pre_build() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new(
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingPlanner {
+            activations: Rc::clone(&activations),
+            decisions: vec![SessionFlowDecision::Complete],
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(runner.session_status(), &SessionStatus::Stopped);
+    assert_eq!(
+        *activations.borrow(),
+        vec![AgentRole::Scholar, AgentRole::Planner]
+    );
+}
+
+#[test]
+fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new(
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingPlanner {
+            activations: Rc::clone(&activations),
+            decisions: vec![SessionFlowDecision::Retry],
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(runner.session_status(), &SessionStatus::Stopped);
+    assert_eq!(
+        *activations.borrow(),
+        vec![AgentRole::Scholar, AgentRole::Planner]
+    );
+}
+
+#[test]
 fn stops_when_critic_returns_invalid_revise_verdict() {
     let activations = Rc::new(RefCell::new(Vec::new()));
 
