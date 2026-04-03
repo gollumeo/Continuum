@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use continuum::application::actors::{Builder, Critic, Planner, Scholar};
+use continuum::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
 use continuum::application::critic_signal::CriticSignal;
 use continuum::application::post_critic_signal::PostCriticSignal;
 use continuum::application::session_flow_decision::SessionFlowDecision;
@@ -61,11 +61,12 @@ struct RecordingBuilder {
 }
 
 impl Builder for RecordingBuilder {
-    fn run(&mut self, scholar_output: &ScholarOutput) {
+    fn run(&mut self, scholar_output: &ScholarOutput) -> BuilderRunReport {
         self.activations.borrow_mut().push(AgentRole::Builder);
         self.observed_data
             .borrow_mut()
             .push(format!("builder:{}", scholar_output.mission_summary));
+        BuilderRunReport::completed()
     }
 }
 

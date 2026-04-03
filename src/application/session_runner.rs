@@ -1,4 +1,4 @@
-use crate::application::actors::{Builder, Critic, Planner, Scholar};
+use crate::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
 use crate::application::critic_signal::CriticSignal;
 use crate::application::post_critic_signal::PostCriticSignal;
 use crate::domain::*;
@@ -20,6 +20,7 @@ pub struct SessionRunner {
     planner: Box<dyn Planner>,
     builder: Box<dyn Builder>,
     critic: Box<dyn Critic>,
+    last_builder_report: Option<BuilderRunReport>,
 }
 
 impl SessionRunner {
@@ -46,6 +47,7 @@ impl SessionRunner {
             planner,
             builder,
             critic,
+            last_builder_report: None,
         }
     }
 
@@ -55,7 +57,16 @@ impl SessionRunner {
 
         match initial_decision {
             crate::application::session_flow_decision::SessionFlowDecision::Build => {
-                self.builder.run(&scholar_output);
+                let builder_report = self.builder.run(&scholar_output);
+                self.last_builder_report = Some(builder_report.clone());
+
+                if !builder_report.is_success() {
+                    self.session.mark_stopped().ok();
+
+                    return Err(FailureReport {
+                        final_session_status: self.session.status,
+                    });
+                }
 
                 let critic_signal = self.critic.run(&scholar_output);
 
@@ -100,7 +111,16 @@ impl SessionRunner {
                     }
 
                     self.retry_budget_remaining -= 1;
-                    self.builder.run(&scholar_output);
+                    let builder_report = self.builder.run(&scholar_output);
+                    self.last_builder_report = Some(builder_report.clone());
+
+                    if !builder_report.is_success() {
+                        self.session.mark_stopped().ok();
+
+                        return Err(FailureReport {
+                            final_session_status: self.session.status,
+                        });
+                    }
 
                     let retry_critic_signal = self.critic.run(&scholar_output);
 
@@ -159,5 +179,9 @@ impl SessionRunner {
 
     pub fn session_status(&self) -> &SessionStatus {
         &self.session.status
+    }
+
+    pub fn last_builder_report(&self) -> Option<&BuilderRunReport> {
+        self.last_builder_report.as_ref()
     }
 }
