@@ -69,3 +69,7 @@ path = "tests/e2e/session_e2e_stop_tests.rs"
 [[test]]
 name = "session_e2e_with_data_tests"
 path = "tests/e2e/session_e2e_with_data_tests.rs"
+
+[[test]]
+name = "cli_minimal_runtime_shell_tests"
+path = "tests/cli/cli_minimal_runtime_shell_tests.rs"
