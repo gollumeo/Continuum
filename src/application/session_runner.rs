@@ -76,6 +76,18 @@ impl SessionRunner {
                     ),
                 };
 
+                match final_decision {
+                    crate::application::session_flow_decision::SessionFlowDecision::Retry
+                    | crate::application::session_flow_decision::SessionFlowDecision::Complete => {}
+                    crate::application::session_flow_decision::SessionFlowDecision::Build => {
+                        self.session.mark_stopped().ok();
+
+                        return Err(FailureReport {
+                            final_session_status: self.session.status,
+                        });
+                    }
+                }
+
                 while final_decision
                     == crate::application::session_flow_decision::SessionFlowDecision::Retry
                 {
@@ -109,6 +121,18 @@ impl SessionRunner {
                             PostCriticSignal::RevisionRequired,
                         ),
                     };
+
+                    match final_decision {
+                        crate::application::session_flow_decision::SessionFlowDecision::Retry
+                        | crate::application::session_flow_decision::SessionFlowDecision::Complete => {}
+                        crate::application::session_flow_decision::SessionFlowDecision::Build => {
+                            self.session.mark_stopped().ok();
+
+                            return Err(FailureReport {
+                                final_session_status: self.session.status,
+                            });
+                        }
+                    }
                 }
 
                 if final_decision

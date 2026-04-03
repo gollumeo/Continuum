@@ -266,6 +266,47 @@ fn returns_failure_report_on_hard_stop() {
 }
 
 #[test]
+fn stops_when_post_critic_planner_returns_build_in_planner_deciding() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new(
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingPlanner {
+            activations: Rc::clone(&activations),
+            decisions: vec![SessionFlowDecision::Build, SessionFlowDecision::Build],
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(runner.session_status(), &SessionStatus::Stopped);
+    assert_eq!(
+        *activations.borrow(),
+        vec![
+            AgentRole::Scholar,
+            AgentRole::Planner,
+            AgentRole::Builder,
+            AgentRole::Critic,
+            AgentRole::Planner,
+        ]
+    );
+}
+
+#[test]
 fn does_not_call_builder_again_after_terminal_stop() {
     let activations = Rc::new(RefCell::new(Vec::new()));
 
