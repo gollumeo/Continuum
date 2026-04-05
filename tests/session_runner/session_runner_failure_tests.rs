@@ -1,19 +1,24 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use continuum::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
-use continuum::application::critic_signal::CriticSignal;
-use continuum::application::post_critic_signal::PostCriticSignal;
-use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{AgentRole, FailureReport, ScholarOutput, SessionRunner, SessionStatus};
+use continuum::{
+    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner,
+    PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
+    SessionStatus,
+};
+
+const SCHOLAR: &str = "scholar";
+const PLANNER: &str = "planner";
+const BUILDER: &str = "builder";
+const CRITIC: &str = "critic";
 
 struct RecordingScholar {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Scholar for RecordingScholar {
     fn run(&mut self) -> ScholarOutput {
-        self.activations.borrow_mut().push(AgentRole::Scholar);
+        self.activations.borrow_mut().push(SCHOLAR);
 
         ScholarOutput {
             mission_summary: "failure path mission".to_string(),
@@ -23,13 +28,13 @@ impl Scholar for RecordingScholar {
 }
 
 struct RecordingPlanner {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
     decisions: Vec<SessionFlowDecision>,
 }
 
 impl Planner for RecordingPlanner {
     fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
         self.decisions.remove(0)
     }
 
@@ -38,53 +43,53 @@ impl Planner for RecordingPlanner {
         _scholar_output: &ScholarOutput,
         _critic_signal: PostCriticSignal,
     ) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
         self.decisions.remove(0)
     }
 }
 
 struct RecordingBuilder {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Builder for RecordingBuilder {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> BuilderRunReport {
-        self.activations.borrow_mut().push(AgentRole::Builder);
+        self.activations.borrow_mut().push(BUILDER);
         BuilderRunReport::completed()
     }
 }
 
 struct InvalidReviseCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Critic for InvalidReviseCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
 
         CriticSignal::Stop
     }
 }
 
 struct RecordingCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Critic for RecordingCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
 
         CriticSignal::Accepted
     }
 }
 
 struct RevisionAwarePlanner {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Planner for RevisionAwarePlanner {
     fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
         SessionFlowDecision::Build
     }
 
@@ -93,7 +98,7 @@ impl Planner for RevisionAwarePlanner {
         _scholar_output: &ScholarOutput,
         critic_signal: PostCriticSignal,
     ) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
 
         match critic_signal {
             PostCriticSignal::RevisionRequired => SessionFlowDecision::Retry,
@@ -103,24 +108,24 @@ impl Planner for RevisionAwarePlanner {
 }
 
 struct RevisionRequestingCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Critic for RevisionRequestingCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
         CriticSignal::RevisionRequired
     }
 }
 
 struct RepeatedRevisionCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
     signals: Vec<CriticSignal>,
 }
 
 impl Critic for RepeatedRevisionCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
         self.signals.remove(0)
     }
 }
@@ -156,7 +161,7 @@ fn stops_when_initial_planner_decision_is_not_admitted_pre_build() {
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
     assert_eq!(
         *activations.borrow(),
-        vec![AgentRole::Scholar, AgentRole::Planner]
+        vec![SCHOLAR, PLANNER]
     );
 }
 
@@ -191,7 +196,7 @@ fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
     assert_eq!(
         *activations.borrow(),
-        vec![AgentRole::Scholar, AgentRole::Planner]
+        vec![SCHOLAR, PLANNER]
     );
 }
 
@@ -225,12 +230,7 @@ fn stops_when_critic_returns_invalid_revise_verdict() {
     );
     assert_eq!(
         *activations.borrow(),
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC]
     );
 }
 
@@ -297,13 +297,7 @@ fn stops_when_post_critic_planner_returns_build_in_planner_deciding() {
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
     assert_eq!(
         *activations.borrow(),
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER]
     );
 }
 
@@ -338,17 +332,12 @@ fn does_not_call_builder_again_after_terminal_stop() {
     );
     assert_eq!(
         recorded_activations,
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC]
     );
     assert_eq!(
         recorded_activations
             .iter()
-            .filter(|role| **role == AgentRole::Builder)
+            .filter(|role| **role == BUILDER)
             .count(),
         1
     );
@@ -386,18 +375,12 @@ fn stops_when_planner_requests_retry_without_budget() {
     );
     assert_eq!(
         recorded_activations,
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER]
     );
     assert_eq!(
         recorded_activations
             .iter()
-            .filter(|role| **role == AgentRole::Builder)
+            .filter(|role| **role == BUILDER)
             .count(),
         1
     );
@@ -434,18 +417,12 @@ fn stops_when_revision_requires_retry_but_no_budget_is_available() {
     );
     assert_eq!(
         recorded_activations,
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER]
     );
     assert_eq!(
         recorded_activations
             .iter()
-            .filter(|role| **role == AgentRole::Builder)
+            .filter(|role| **role == BUILDER)
             .count(),
         1
     );
@@ -484,20 +461,13 @@ fn stops_after_consuming_last_retry_budget_when_revision_is_requested_again() {
     assert_eq!(
         recorded_activations,
         vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
+            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,
         ]
     );
     assert_eq!(
         recorded_activations
             .iter()
-            .filter(|role| **role == AgentRole::Builder)
+            .filter(|role| **role == BUILDER)
             .count(),
         2
     );
@@ -540,23 +510,14 @@ fn stops_after_third_revision_request_when_retry_budget_of_two_is_fully_consumed
     assert_eq!(
         recorded_activations,
         vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
+            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER,
+            CRITIC, PLANNER,
         ]
     );
     assert_eq!(
         recorded_activations
             .iter()
-            .filter(|role| **role == AgentRole::Builder)
+            .filter(|role| **role == BUILDER)
             .count(),
         3
     );

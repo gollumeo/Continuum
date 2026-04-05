@@ -1,6 +1,4 @@
-use continuum::application::actors::Critic;
-use continuum::application::critic_signal::CriticSignal;
-use continuum::ScholarOutput;
+use continuum::{Critic, CriticSignal, ScholarOutput};
 
 #[test]
 fn critic_signal_explicitly_models_minimal_runtime_review_outcomes() {

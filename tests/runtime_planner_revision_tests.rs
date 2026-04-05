@@ -1,7 +1,6 @@
-use continuum::application::actors::{Planner, PostCriticPlanner};
-use continuum::application::post_critic_signal::PostCriticSignal;
-use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::ScholarOutput;
+use continuum::{
+    Planner, PostCriticPlanner, PostCriticSignal, ScholarOutput, SessionFlowDecision,
+};
 
 struct CompletingPlanner;
 

@@ -1,5 +1,4 @@
-use continuum::application::scholar::MissionScholar;
-use continuum::{RawMission, ScholarOutput};
+use continuum::{MissionScholar, RawMission, ScholarOutput};
 
 #[test]
 fn transforms_raw_mission_into_scholar_output() {

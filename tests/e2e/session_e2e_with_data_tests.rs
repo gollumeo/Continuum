@@ -1,19 +1,23 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use continuum::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
-use continuum::application::critic_signal::CriticSignal;
-use continuum::application::post_critic_signal::PostCriticSignal;
-use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{AgentRole, ScholarOutput, SessionRunner, SessionStatus, SessionSummary};
+use continuum::{
+    Builder, BuilderRunReport, Critic, CriticSignal, Planner, PostCriticSignal, Scholar,
+    ScholarOutput, SessionFlowDecision, SessionRunner, SessionStatus, SessionSummary,
+};
+
+const SCHOLAR: &str = "scholar";
+const PLANNER: &str = "planner";
+const BUILDER: &str = "builder";
+const CRITIC: &str = "critic";
 
 struct RecordingScholar {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Scholar for RecordingScholar {
     fn run(&mut self) -> ScholarOutput {
-        self.activations.borrow_mut().push(AgentRole::Scholar);
+        self.activations.borrow_mut().push(SCHOLAR);
 
         ScholarOutput {
             mission_summary: "propagated mission context".to_string(),
@@ -23,14 +27,14 @@ impl Scholar for RecordingScholar {
 }
 
 struct DataAwarePlanner {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
     observed_data: Rc<RefCell<Vec<String>>>,
     call_count: u8,
 }
 
 impl Planner for DataAwarePlanner {
     fn decide(&mut self, scholar_output: &ScholarOutput) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
         self.observed_data
             .borrow_mut()
             .push(format!("planner:{}", scholar_output.mission_summary));
@@ -56,13 +60,13 @@ impl Planner for DataAwarePlanner {
 }
 
 struct RecordingBuilder {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
     observed_data: Rc<RefCell<Vec<String>>>,
 }
 
 impl Builder for RecordingBuilder {
     fn run(&mut self, scholar_output: &ScholarOutput) -> BuilderRunReport {
-        self.activations.borrow_mut().push(AgentRole::Builder);
+        self.activations.borrow_mut().push(BUILDER);
         self.observed_data
             .borrow_mut()
             .push(format!("builder:{}", scholar_output.mission_summary));
@@ -71,13 +75,13 @@ impl Builder for RecordingBuilder {
 }
 
 struct RecordingCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
     observed_data: Rc<RefCell<Vec<String>>>,
 }
 
 impl Critic for RecordingCritic {
     fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
         self.observed_data
             .borrow_mut()
             .push(format!("critic:{}", scholar_output.mission_summary));
@@ -123,13 +127,7 @@ fn propagates_scholar_output_through_session() {
     );
     assert_eq!(
         *activations.borrow(),
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-            AgentRole::Planner,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER]
     );
     assert_eq!(
         *observed_data.borrow(),

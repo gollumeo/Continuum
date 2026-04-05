@@ -1,10 +1,22 @@
-pub mod domain;
-pub mod application;
+mod domain;
+mod application;
 
+pub use application::actors::{
+    Builder,
+    BuilderIssue,
+    BuilderRunReport,
+    BuilderScopeStatus,
+    Critic,
+    Planner,
+    PostCriticPlanner,
+    Scholar,
+};
+pub use application::critic_signal::CriticSignal;
+pub use application::post_critic_signal::PostCriticSignal;
+pub use application::scholar::MissionScholar;
+pub use application::session_flow_decision::SessionFlowDecision;
 pub use application::session_runner::{FailureReport, SessionRunner, SessionSummary};
-pub use application::workflow::{AgentRole, StateMachine, WorkflowState};
 pub use domain::{
-    HandoffDecision,
     RawMission,
     Session,
     SessionError,

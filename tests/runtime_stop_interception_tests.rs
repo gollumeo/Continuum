@@ -1,31 +1,36 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use continuum::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
-use continuum::application::critic_signal::CriticSignal;
-use continuum::application::post_critic_signal::PostCriticSignal;
-use continuum::application::session_flow_decision::SessionFlowDecision;
-use continuum::{AgentRole, FailureReport, ScholarOutput, SessionRunner, SessionStatus};
+use continuum::{
+    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner,
+    PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
+    SessionStatus,
+};
+
+const SCHOLAR: &str = "scholar";
+const PLANNER: &str = "planner";
+const BUILDER: &str = "builder";
+const CRITIC: &str = "critic";
 
 struct RecordingScholar {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Scholar for RecordingScholar {
     fn run(&mut self) -> ScholarOutput {
-        self.activations.borrow_mut().push(AgentRole::Scholar);
+        self.activations.borrow_mut().push(SCHOLAR);
 
         ScholarOutput::new("runtime stop mission", "runtime stop mission")
     }
 }
 
 struct StopRejectingPlanner {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Planner for StopRejectingPlanner {
     fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
-        self.activations.borrow_mut().push(AgentRole::Planner);
+        self.activations.borrow_mut().push(PLANNER);
         SessionFlowDecision::Build
     }
 
@@ -39,23 +44,23 @@ impl Planner for StopRejectingPlanner {
 }
 
 struct RecordingBuilder {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Builder for RecordingBuilder {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> BuilderRunReport {
-        self.activations.borrow_mut().push(AgentRole::Builder);
+        self.activations.borrow_mut().push(BUILDER);
         BuilderRunReport::completed()
     }
 }
 
 struct StopCritic {
-    activations: Rc<RefCell<Vec<AgentRole>>>,
+    activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
 impl Critic for StopCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
-        self.activations.borrow_mut().push(AgentRole::Critic);
+        self.activations.borrow_mut().push(CRITIC);
         CriticSignal::Stop
     }
 }
@@ -89,11 +94,6 @@ fn session_runner_intercepts_terminal_stop_before_post_critic_planner() {
     );
     assert_eq!(
         *activations.borrow(),
-        vec![
-            AgentRole::Scholar,
-            AgentRole::Planner,
-            AgentRole::Builder,
-            AgentRole::Critic,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC]
     );
 }

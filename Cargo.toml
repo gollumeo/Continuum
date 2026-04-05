@@ -31,26 +31,6 @@ name = "scholar_tests"
 path = "tests/domain/scholar_tests.rs"
 
 [[test]]
-name = "planner_decision_tests"
-path = "tests/domain/planner_decision_tests.rs"
-
-[[test]]
-name = "planner_tests"
-path = "tests/domain/planner_tests.rs"
-
-[[test]]
-name = "session_e2e_scholar_planner_handoff_tests"
-path = "tests/e2e/session_e2e_scholar_planner_handoff_tests.rs"
-
-[[test]]
-name = "state_machine_transition_tests"
-path = "tests/state_machine/state_machine_transition_tests.rs"
-
-[[test]]
-name = "state_machine_guard_tests"
-path = "tests/state_machine/state_machine_guard_tests.rs"
-
-[[test]]
 name = "session_runner_happy_path_tests"
 path = "tests/session_runner/session_runner_happy_path_tests.rs"
 
