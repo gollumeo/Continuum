@@ -202,3 +202,47 @@ fn runs_builder_a_second_time_when_first_critique_requests_revision() {
         2
     );
 }
+
+#[test]
+fn completes_when_critic_accepts_revision_aware_planner_path() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        1,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RevisionAwarePlanner {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let summary = runner
+        .run()
+        .expect("accepted critic signal should complete without retry");
+
+    assert_eq!(
+        summary,
+        SessionSummary {
+            final_session_status: SessionStatus::Completed,
+        }
+    );
+    assert_eq!(
+        *activations.borrow(),
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER]
+    );
+    assert_eq!(
+        activations
+            .borrow()
+            .iter()
+            .filter(|role| **role == BUILDER)
+            .count(),
+        1
+    );
+}

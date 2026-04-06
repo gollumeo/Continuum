@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::{
-    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner,
-    PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
-    SessionStatus,
+    Builder, BuilderIssue, BuilderRunReport, BuilderScopeStatus, Critic, CriticSignal,
+    FailureReport, Planner, PostCriticSignal, Scholar, ScholarOutput,
+    SessionFlowDecision, SessionRunner, SessionStatus,
 };
 
 const SCHOLAR: &str = "scholar";
@@ -56,6 +56,25 @@ impl Builder for RecordingBuilder {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> BuilderRunReport {
         self.activations.borrow_mut().push(BUILDER);
         BuilderRunReport::completed()
+    }
+}
+
+struct FailingBuilder {
+    activations: Rc<RefCell<Vec<&'static str>>>,
+}
+
+impl Builder for FailingBuilder {
+    fn run(&mut self, _scholar_output: &ScholarOutput) -> BuilderRunReport {
+        self.activations.borrow_mut().push(BUILDER);
+
+        BuilderRunReport {
+            issue: BuilderIssue::ProcessFailed,
+            scope_status: BuilderScopeStatus::NotChecked,
+            allowed_file_scope: Vec::new(),
+            changed_files: Vec::new(),
+            stdout: String::new(),
+            stderr: "builder failed".to_string(),
+        }
     }
 }
 
@@ -231,6 +250,42 @@ fn stops_when_critic_returns_invalid_revise_verdict() {
     assert_eq!(
         *activations.borrow(),
         vec![SCHOLAR, PLANNER, BUILDER, CRITIC]
+    );
+}
+
+#[test]
+fn stops_when_builder_report_is_not_successful() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new(
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingPlanner {
+            activations: Rc::clone(&activations),
+            decisions: vec![SessionFlowDecision::Build],
+        }),
+        Box::new(FailingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+        })
+    );
+    assert_eq!(runner.session_status(), &SessionStatus::Stopped);
+    assert_eq!(*activations.borrow(), vec![SCHOLAR, PLANNER, BUILDER]);
+    assert_eq!(
+        runner.last_builder_report().map(|report| &report.issue),
+        Some(&BuilderIssue::ProcessFailed)
     );
 }
 

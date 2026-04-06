@@ -1,6 +1,8 @@
 use crate::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
-use crate::application::critic_signal::CriticSignal;
-use crate::application::post_critic_signal::PostCriticSignal;
+use crate::application::runtime_policy::{
+    BuilderOutcomePolicy, CriticSignalPolicy, PostCriticDecisionPolicy, PreBuildPolicy,
+    RetryDirective, RetryPolicy,
+};
 use crate::domain::*;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,126 +57,50 @@ impl SessionRunner {
         let scholar_output = self.scholar.run();
         let initial_decision = self.planner.decide(&scholar_output);
 
-        match initial_decision {
-            crate::application::session_flow_decision::SessionFlowDecision::Build => {
-                let builder_report = self.builder.run(&scholar_output);
-                self.last_builder_report = Some(builder_report.clone());
+        PreBuildPolicy::admit_or_stop(initial_decision, &mut self.session)?;
 
-                if !builder_report.is_success() {
-                    self.session.mark_stopped().ok();
+        let mut retry_directive = self.run_attempt(&scholar_output)?;
 
-                    return Err(FailureReport {
-                        final_session_status: self.session.status,
-                    });
-                }
+        while retry_directive == RetryDirective::Retry {
+            retry_directive = self.run_attempt(&scholar_output)?;
+        }
 
-                let critic_signal = self.critic.run(&scholar_output);
-
-                let mut final_decision = match critic_signal {
-                    CriticSignal::Stop => {
-                        self.session.mark_stopped().ok();
-
-                        return Err(FailureReport {
-                            final_session_status: self.session.status,
-                        });
-                    }
-                    CriticSignal::Accepted => self
-                        .planner
-                        .decide_with_critic_signal(&scholar_output, PostCriticSignal::Accepted),
-                    CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
-                        &scholar_output,
-                        PostCriticSignal::RevisionRequired,
-                    ),
-                };
-
-                match final_decision {
-                    crate::application::session_flow_decision::SessionFlowDecision::Retry
-                    | crate::application::session_flow_decision::SessionFlowDecision::Complete => {}
-                    crate::application::session_flow_decision::SessionFlowDecision::Build => {
-                        self.session.mark_stopped().ok();
-
-                        return Err(FailureReport {
-                            final_session_status: self.session.status,
-                        });
-                    }
-                }
-
-                while final_decision
-                    == crate::application::session_flow_decision::SessionFlowDecision::Retry
-                {
-                    if self.retry_budget_remaining == 0 {
-                        self.session.mark_stopped().ok();
-
-                        return Err(FailureReport {
-                            final_session_status: self.session.status,
-                        });
-                    }
-
-                    self.retry_budget_remaining -= 1;
-                    let builder_report = self.builder.run(&scholar_output);
-                    self.last_builder_report = Some(builder_report.clone());
-
-                    if !builder_report.is_success() {
-                        self.session.mark_stopped().ok();
-
-                        return Err(FailureReport {
-                            final_session_status: self.session.status,
-                        });
-                    }
-
-                    let retry_critic_signal = self.critic.run(&scholar_output);
-
-                    final_decision = match retry_critic_signal {
-                        CriticSignal::Stop => {
-                            self.session.mark_stopped().ok();
-
-                            return Err(FailureReport {
-                                final_session_status: self.session.status,
-                            });
-                        }
-                        CriticSignal::Accepted => self.planner.decide_with_critic_signal(
-                            &scholar_output,
-                            PostCriticSignal::Accepted,
-                        ),
-                        CriticSignal::RevisionRequired => self.planner.decide_with_critic_signal(
-                            &scholar_output,
-                            PostCriticSignal::RevisionRequired,
-                        ),
-                    };
-
-                    match final_decision {
-                        crate::application::session_flow_decision::SessionFlowDecision::Retry
-                        | crate::application::session_flow_decision::SessionFlowDecision::Complete => {}
-                        crate::application::session_flow_decision::SessionFlowDecision::Build => {
-                            self.session.mark_stopped().ok();
-
-                            return Err(FailureReport {
-                                final_session_status: self.session.status,
-                            });
-                        }
-                    }
-                }
-
-                if final_decision
-                    == crate::application::session_flow_decision::SessionFlowDecision::Complete
-                {
-                    self.session.mark_completed().map_err(|_| FailureReport {
-                        final_session_status: self.session.status,
-                    })?;
-                }
-            }
-            _ => {
-                self.session.mark_stopped().ok();
-
-                return Err(FailureReport {
-                    final_session_status: self.session.status,
-                });
-            }
+        if retry_directive == RetryDirective::Complete {
+            self.session.mark_completed().map_err(|_| FailureReport {
+                final_session_status: self.session.status,
+            })?;
         }
 
         Ok(SessionSummary {
             final_session_status: self.session.status,
         })
+    }
+
+    fn run_attempt(
+        &mut self,
+        scholar_output: &ScholarOutput,
+    ) -> Result<RetryDirective, FailureReport> {
+        let builder_report = self.builder.run(&scholar_output);
+        self.last_builder_report = Some(builder_report.clone());
+
+        BuilderOutcomePolicy::admit_or_stop(&builder_report, &mut self.session)?;
+
+        let critic_signal = self.critic.run(&scholar_output);
+        let post_critic_signal =
+            CriticSignalPolicy::interpret_or_stop(critic_signal, &mut self.session)?;
+
+        let final_decision = self
+            .planner
+            .decide_with_critic_signal(&scholar_output, post_critic_signal);
+
+        let post_critic_decision =
+            PostCriticDecisionPolicy::admit_or_stop(final_decision, &mut self.session)?;
+
+        RetryPolicy::authorize_or_stop(
+            post_critic_decision,
+            &mut self.retry_budget_remaining,
+            &mut self.session,
+        )
     }
 
     pub fn session_status(&self) -> &SessionStatus {
