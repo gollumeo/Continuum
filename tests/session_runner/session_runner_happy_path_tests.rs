@@ -136,7 +136,7 @@ fn runs_agents_in_strict_order_for_happy_path() {
 }
 
 #[test]
-fn completes_session_after_approve_then_complete_decision() {
+fn completes_session_after_accepted_signal_then_complete_decision() {
     let activations = Rc::new(RefCell::new(Vec::new()));
     let mut runner = happy_path_runner(Rc::clone(&activations));
 
@@ -171,7 +171,7 @@ fn returns_session_summary_on_success() {
 }
 
 #[test]
-fn runs_builder_a_second_time_when_first_critique_requests_revision() {
+fn runs_builder_a_second_time_when_critic_requests_revision_first() {
     let activations = Rc::new(RefCell::new(Vec::new()));
 
     let mut runner = SessionRunner::new_with_retry_budget(

@@ -78,11 +78,11 @@ impl Builder for FailingBuilder {
     }
 }
 
-struct InvalidReviseCritic {
+struct StopSignalingCritic {
     activations: Rc<RefCell<Vec<&'static str>>>,
 }
 
-impl Critic for InvalidReviseCritic {
+impl Critic for StopSignalingCritic {
     fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
         self.activations.borrow_mut().push(CRITIC);
 
@@ -220,7 +220,7 @@ fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
 }
 
 #[test]
-fn stops_when_critic_returns_invalid_revise_verdict() {
+fn stops_when_critic_returns_stop_signal() {
     let activations = Rc::new(RefCell::new(Vec::new()));
 
     let mut runner = SessionRunner::new(
@@ -234,7 +234,7 @@ fn stops_when_critic_returns_invalid_revise_verdict() {
         Box::new(RecordingBuilder {
             activations: Rc::clone(&activations),
         }),
-        Box::new(InvalidReviseCritic {
+        Box::new(StopSignalingCritic {
             activations: Rc::clone(&activations),
         }),
     );
@@ -290,7 +290,7 @@ fn stops_when_builder_report_is_not_successful() {
 }
 
 #[test]
-fn returns_failure_report_on_hard_stop() {
+fn returns_failure_report_when_critic_stops_session() {
     let activations = Rc::new(RefCell::new(Vec::new()));
 
     let mut runner = SessionRunner::new(
@@ -304,14 +304,14 @@ fn returns_failure_report_on_hard_stop() {
         Box::new(RecordingBuilder {
             activations: Rc::clone(&activations),
         }),
-        Box::new(InvalidReviseCritic {
+        Box::new(StopSignalingCritic {
             activations: Rc::clone(&activations),
         }),
     );
 
     let failure_report = runner
         .run()
-        .expect_err("invalid revise verdict should return a failure report");
+        .expect_err("critic stop signal should return a failure report");
 
     assert_eq!(
         failure_report,
@@ -371,7 +371,7 @@ fn does_not_call_builder_again_after_terminal_stop() {
         Box::new(RecordingBuilder {
             activations: Rc::clone(&activations),
         }),
-        Box::new(InvalidReviseCritic {
+        Box::new(StopSignalingCritic {
             activations: Rc::clone(&activations),
         }),
     );
