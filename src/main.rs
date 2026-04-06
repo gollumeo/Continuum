@@ -1,4 +1,5 @@
 mod entrypoint_cli;
+mod terminal_rendering;
 
 use continuum::{
     Builder,
@@ -16,13 +17,13 @@ use continuum::{
     ScholarOutput,
     SessionFlowDecision,
     SessionRunner,
-    SessionStatus,
 };
 use entrypoint_cli::read_cli_runtime_request;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::ExitCode;
+use terminal_rendering::{render_failure, render_success};
 
 struct ShellScholar {
     mission: RawMission,
@@ -238,11 +239,7 @@ impl Critic for ShellCritic {
 fn main() -> ExitCode {
     let request = match read_cli_runtime_request() {
         Ok(request) => request,
-        Err(error) => {
-            eprintln!("terminal_outcome=failure");
-            eprintln!("error={error}");
-            return ExitCode::from(1);
-        }
+        Err(error) => return render_failure(None, None, None, Some(&error)),
     };
 
     let mut session_runner = SessionRunner::new(
@@ -256,30 +253,17 @@ fn main() -> ExitCode {
     let builder_report = session_runner.last_builder_report().cloned();
 
     match result {
-        Ok(summary) => {
-            println!("terminal_outcome=success");
-            println!("repository_root={}", request.repository_root.display());
-            if let Some(report) = builder_report.as_ref() {
-                render_builder_report_stdout(report);
-            }
-            println!(
-                "session_status={}",
-                render_session_status(summary.final_session_status)
-            );
-            ExitCode::SUCCESS
-        }
-        Err(report) => {
-            eprintln!("terminal_outcome=failure");
-            eprintln!("repository_root={}", request.repository_root.display());
-            if let Some(builder_report) = builder_report.as_ref() {
-                render_builder_report_stderr(builder_report);
-            }
-            eprintln!(
-                "session_status={}",
-                render_session_status(report.final_session_status)
-            );
-            ExitCode::from(1)
-        }
+        Ok(summary) => render_success(
+            &request.repository_root,
+            builder_report.as_ref(),
+            summary.final_session_status,
+        ),
+        Err(report) => render_failure(
+            Some(&request.repository_root),
+            builder_report.as_ref(),
+            Some(report.final_session_status),
+            None,
+        ),
     }
 }
 
@@ -294,58 +278,4 @@ fn parse_git_status_paths(status_output: &str) -> BTreeSet<String> {
                 .to_string()
         })
         .collect()
-}
-
-fn render_builder_report_stdout(report: &BuilderRunReport) {
-    println!("builder_issue={}", render_builder_issue(&report.issue));
-    println!(
-        "builder_scope_status={}",
-        render_builder_scope_status(&report.scope_status)
-    );
-    println!("builder_allowed_file_scope={}", report.allowed_file_scope.join(","));
-    println!("builder_changed_files={}", report.changed_files.join(","));
-    println!("builder_stdout={}", render_terminal_field(&report.stdout));
-    println!("builder_stderr={}", render_terminal_field(&report.stderr));
-}
-
-fn render_builder_report_stderr(report: &BuilderRunReport) {
-    eprintln!("builder_issue={}", render_builder_issue(&report.issue));
-    eprintln!(
-        "builder_scope_status={}",
-        render_builder_scope_status(&report.scope_status)
-    );
-    eprintln!("builder_allowed_file_scope={}", report.allowed_file_scope.join(","));
-    eprintln!("builder_changed_files={}", report.changed_files.join(","));
-    eprintln!("builder_stdout={}", render_terminal_field(&report.stdout));
-    eprintln!("builder_stderr={}", render_terminal_field(&report.stderr));
-}
-
-fn render_builder_issue(issue: &BuilderIssue) -> &'static str {
-    match issue {
-        BuilderIssue::Completed => "completed",
-        BuilderIssue::PreconditionFailed => "precondition_failed",
-        BuilderIssue::LaunchFailed => "launch_failed",
-        BuilderIssue::ProcessFailed => "process_failed",
-        BuilderIssue::ScopeViolated => "scope_violated",
-    }
-}
-
-fn render_builder_scope_status(status: &BuilderScopeStatus) -> &'static str {
-    match status {
-        BuilderScopeStatus::NotChecked => "not_checked",
-        BuilderScopeStatus::WithinScope => "within_scope",
-        BuilderScopeStatus::Violated => "violated",
-    }
-}
-
-fn render_terminal_field(value: &str) -> String {
-    value.replace('\r', "").replace('\n', "\\n")
-}
-
-fn render_session_status(status: SessionStatus) -> &'static str {
-    match status {
-        SessionStatus::Active => "active",
-        SessionStatus::Completed => "completed",
-        SessionStatus::Stopped => "stopped",
-    }
 }
