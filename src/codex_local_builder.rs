@@ -23,7 +23,11 @@ impl CodexLocalBuilderAdapter {
                 "README.md".to_string(),
                 "project-directives/index.md".to_string(),
             ])
-        } else if scholar_output.selected_task_scope.contains("Modify only README.md.") {
+        } else if scholar_output.selected_task_scope.contains("Modify only README.md.")
+            && !scholar_output
+                .selected_task_scope
+                .contains("project-directives/index.md")
+        {
             Some(vec!["README.md".to_string()])
         } else {
             None
@@ -86,7 +90,7 @@ impl Builder for CodexLocalBuilderAdapter {
                 allowed_file_scope: Vec::new(),
                 changed_files: Vec::new(),
                 stdout: String::new(),
-                stderr: "builder requires an explicit allowed file scope; only README.md is admitted in this minimal adapter".to_string(),
+                stderr: "builder requires an explicit allowed file scope; only README.md or README.md plus project-directives/index.md are admitted in this minimal adapter".to_string(),
             };
         };
 

@@ -231,7 +231,63 @@ fn fails_closed_when_prompt_has_no_explicit_allowed_scope() {
     assert!(stderr.contains("builder_allowed_file_scope="));
     assert!(stderr.contains("builder_changed_files="));
     assert!(stderr.contains(
-        "builder_stderr=builder requires an explicit allowed file scope; only README.md is admitted in this minimal adapter"
+        "builder_stderr=builder requires an explicit allowed file scope; only README.md or README.md plus project-directives/index.md are admitted in this minimal adapter"
+    ));
+}
+
+#[test]
+fn fails_closed_when_two_file_sync_prompt_only_allows_readme() {
+    let binary_path =
+        std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+
+    let output = Command::new(binary_path)
+        .current_dir(repo_root)
+        .arg("Synchronize README.md and project-directives/index.md. Modify only README.md.")
+        .output()
+        .expect("binary should launch");
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+
+    assert!(stderr.contains("terminal_outcome=failure"));
+    assert!(stderr.contains("session_status=stopped"));
+    assert!(stderr.contains("builder_issue=precondition_failed"));
+    assert!(stderr.contains("builder_scope_status=not_checked"));
+    assert!(stderr.contains("builder_allowed_file_scope="));
+    assert!(stderr.contains("builder_changed_files="));
+    assert!(stderr.contains(
+        "builder_stderr=builder requires an explicit allowed file scope; only README.md or README.md plus project-directives/index.md are admitted in this minimal adapter"
+    ));
+}
+
+#[test]
+fn fails_closed_when_two_file_sync_prompt_only_allows_project_directives_index() {
+    let binary_path =
+        std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+
+    let output = Command::new(binary_path)
+        .current_dir(repo_root)
+        .arg(
+            "Synchronize README.md and project-directives/index.md. Modify only project-directives/index.md.",
+        )
+        .output()
+        .expect("binary should launch");
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+
+    assert!(stderr.contains("terminal_outcome=failure"));
+    assert!(stderr.contains("session_status=stopped"));
+    assert!(stderr.contains("builder_issue=precondition_failed"));
+    assert!(stderr.contains("builder_scope_status=not_checked"));
+    assert!(stderr.contains("builder_allowed_file_scope="));
+    assert!(stderr.contains("builder_changed_files="));
+    assert!(stderr.contains(
+        "builder_stderr=builder requires an explicit allowed file scope; only README.md or README.md plus project-directives/index.md are admitted in this minimal adapter"
     ));
 }
 
