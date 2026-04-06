@@ -225,6 +225,62 @@ fn stops_when_two_file_sync_run_leaves_project_directives_index_missing() {
 }
 
 #[test]
+fn completes_two_file_sync_after_one_runtime_retry() {
+    let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
+        .expect("continuum binary should be built for this test");
+    let repo_root = init_temp_git_repo("codex-two-file-retry-repo");
+    let temp_dir = unique_temp_dir("codex-two-file-retry");
+    let bin_dir = temp_dir.join("bin");
+    let args_log = temp_dir.join("codex-args.log");
+    let pwd_log = temp_dir.join("codex-pwd.log");
+    let call_count_log = temp_dir.join("codex-call-count.log");
+
+    fs::create_dir_all(&bin_dir).expect("fake codex bin dir should be created");
+    install_fake_codex_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$CODEX_ARGS_LOG\"\npwd >> \"$CODEX_PWD_LOG\"\ncount=0\nif [ -f \"$CODEX_CALL_COUNT_LOG\" ]; then\n  count=$(cat \"$CODEX_CALL_COUNT_LOG\")\nfi\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$CODEX_CALL_COUNT_LOG\"\nmkdir -p project-directives\nprintf '# Continuum\\nSee project-directives/index.md\\n' > README.md\nif [ \"$count\" -eq 1 ]; then\n  printf '# Project Directives Index\\n' > project-directives/index.md\nelse\n  printf '# Project Directives Index\\nSee README.md\\n' > project-directives/index.md\nfi\nexit 0\n",
+    );
+
+    let output = Command::new(binary_path)
+        .current_dir(&repo_root)
+        .env("PATH", prefixed_path(&bin_dir))
+        .env("CODEX_ARGS_LOG", &args_log)
+        .env("CODEX_PWD_LOG", &pwd_log)
+        .env("CODEX_CALL_COUNT_LOG", &call_count_log)
+        .arg(
+            "Synchronize README.md and project-directives/index.md. Modify only README.md and project-directives/index.md.",
+        )
+        .output()
+        .expect("binary should launch");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let codex_args = fs::read_to_string(&args_log).expect("codex args should be logged");
+    let codex_pwd = fs::read_to_string(&pwd_log).expect("codex working dir should be logged");
+    let call_count = fs::read_to_string(&call_count_log).expect("codex call count should exist");
+    let readme = fs::read_to_string(repo_root.join("README.md")).expect("README.md should exist");
+    let directives_index = fs::read_to_string(repo_root.join("project-directives/index.md"))
+        .expect("project-directives/index.md should exist");
+
+    assert!(stdout.contains("terminal_outcome=success"));
+    assert!(stdout.contains("session_status=completed"));
+    assert!(stdout.contains("builder_issue=completed"));
+    assert!(stdout.contains("builder_scope_status=within_scope"));
+    assert!(stdout.contains(
+        "builder_allowed_file_scope=README.md,project-directives/index.md"
+    ));
+    assert_eq!(call_count, "2");
+    assert!(codex_args.matches("exec").count() >= 2);
+    assert!(codex_args.contains(
+        "Allowed file scope: README.md, project-directives/index.md"
+    ));
+    assert!(codex_pwd.matches(&repo_root.display().to_string()).count() >= 2);
+    assert!(readme.contains("project-directives/index.md"));
+    assert!(directives_index.contains("README.md"));
+}
+
+#[test]
 fn fails_when_prompt_argument_is_missing() {
     let binary_path =
         std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");

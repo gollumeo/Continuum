@@ -3,18 +3,33 @@ use continuum::{
     Critic, CriticSignal, MissionScholar, Planner, PostCriticPlanner, PostCriticSignal,
     RawMission, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
 };
+use std::fs;
 use std::path::PathBuf;
 
 pub fn build_local_shell_session_runner(
     mission: RawMission,
     repository_root: PathBuf,
 ) -> SessionRunner {
-    SessionRunner::new(
-        Box::new(ShellScholar::new(mission)),
-        Box::new(ShellPlanner::new()),
-        Box::new(CodexLocalBuilderAdapter::new(repository_root.clone())),
-        Box::new(ShellCritic::new(repository_root)),
-    )
+    let is_two_file_document_sync = mission
+        .content
+        .contains("Modify only README.md and project-directives/index.md.");
+
+    if is_two_file_document_sync {
+        SessionRunner::new_with_retry_budget(
+            1,
+            Box::new(ShellScholar::new(mission)),
+            Box::new(ShellPlanner::new()),
+            Box::new(CodexLocalBuilderAdapter::new(repository_root.clone())),
+            Box::new(ShellCritic::new(repository_root)),
+        )
+    } else {
+        SessionRunner::new(
+            Box::new(ShellScholar::new(mission)),
+            Box::new(ShellPlanner::new()),
+            Box::new(CodexLocalBuilderAdapter::new(repository_root.clone())),
+            Box::new(ShellCritic::new(repository_root)),
+        )
+    }
 }
 
 struct ShellScholar {
@@ -85,6 +100,21 @@ impl Critic for ShellCritic {
 
             if !readme_path.is_file() || !directives_index_path.is_file() {
                 return CriticSignal::Stop;
+            }
+
+            let readme = match fs::read_to_string(&readme_path) {
+                Ok(readme) => readme,
+                Err(_) => return CriticSignal::Stop,
+            };
+            let directives_index = match fs::read_to_string(&directives_index_path) {
+                Ok(directives_index) => directives_index,
+                Err(_) => return CriticSignal::Stop,
+            };
+
+            if !readme.contains("project-directives/index.md")
+                || !directives_index.contains("README.md")
+            {
+                return CriticSignal::RevisionRequired;
             }
         }
 
