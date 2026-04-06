@@ -96,6 +96,25 @@ fn runs_single_session_from_terminal_prompt_on_current_repo() {
 }
 
 #[test]
+fn fails_when_prompt_argument_is_missing() {
+    let binary_path =
+        std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+
+    let output = Command::new(binary_path)
+        .current_dir(repo_root)
+        .output()
+        .expect("binary should launch");
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+
+    assert!(stderr.contains("terminal_outcome=failure"));
+    assert!(stderr.contains("error=expected exactly one non-empty prompt argument"));
+}
+
+#[test]
 fn fails_with_exploitable_builder_issue_when_codex_process_fails() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
@@ -133,6 +152,33 @@ fn fails_with_exploitable_builder_issue_when_codex_process_fails() {
     assert!(stderr.contains(repo_root));
     assert!(codex_args.contains("Role: Builder"));
     assert!(codex_args.contains("Allowed file scope: README.md"));
+}
+
+#[test]
+fn fails_closed_when_prompt_has_no_explicit_allowed_scope() {
+    let binary_path =
+        std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+
+    let output = Command::new(binary_path)
+        .current_dir(repo_root)
+        .arg("Do something useful for this repository.")
+        .output()
+        .expect("binary should launch");
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+
+    assert!(stderr.contains("terminal_outcome=failure"));
+    assert!(stderr.contains("session_status=stopped"));
+    assert!(stderr.contains("builder_issue=precondition_failed"));
+    assert!(stderr.contains("builder_scope_status=not_checked"));
+    assert!(stderr.contains("builder_allowed_file_scope="));
+    assert!(stderr.contains("builder_changed_files="));
+    assert!(stderr.contains(
+        "builder_stderr=builder requires an explicit allowed file scope; only README.md is admitted in this minimal adapter"
+    ));
 }
 
 #[test]
