@@ -96,6 +96,60 @@ fn runs_single_session_from_terminal_prompt_on_current_repo() {
 }
 
 #[test]
+fn runs_two_file_document_sync_scope_from_terminal_prompt_on_current_repo() {
+    let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
+        .expect("continuum binary should be built for this test");
+    let repo_root = env!("CARGO_MANIFEST_DIR");
+    let temp_dir = unique_temp_dir("codex-two-file-success");
+    let bin_dir = temp_dir.join("bin");
+    let args_log = temp_dir.join("codex-args.log");
+    let pwd_log = temp_dir.join("codex-pwd.log");
+
+    fs::create_dir_all(&bin_dir).expect("fake codex bin dir should be created");
+    install_fake_codex(&bin_dir);
+
+    let output = Command::new(binary_path)
+        .current_dir(repo_root)
+        .env("PATH", prefixed_path(&bin_dir))
+        .env("CODEX_ARGS_LOG", &args_log)
+        .env("CODEX_PWD_LOG", &pwd_log)
+        .env("CODEX_STDOUT", "builder stdout")
+        .env("CODEX_STDERR", "builder stderr")
+        .env("CODEX_EXIT_CODE", "0")
+        .arg(
+            "Synchronize README.md and project-directives/index.md. Modify only README.md and project-directives/index.md.",
+        )
+        .output()
+        .expect("binary should launch");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let codex_args = fs::read_to_string(&args_log).expect("codex args should be logged");
+    let codex_pwd = fs::read_to_string(&pwd_log).expect("codex working dir should be logged");
+
+    assert!(stdout.contains("terminal_outcome=success"));
+    assert!(stdout.contains("session_status=completed"));
+    assert!(stdout.contains("builder_issue=completed"));
+    assert!(stdout.contains("builder_scope_status=within_scope"));
+    assert!(stdout.contains(
+        "builder_allowed_file_scope=README.md,project-directives/index.md"
+    ));
+    assert!(stdout.contains("builder_stdout=builder stdout"));
+    assert!(stdout.contains("builder_stderr=builder stderr"));
+    assert!(stdout.contains(repo_root));
+
+    assert!(codex_pwd.contains(repo_root));
+    assert!(codex_args.contains("exec"));
+    assert!(codex_args.contains("-C"));
+    assert!(codex_args.contains(repo_root));
+    assert!(codex_args.contains("Role: Builder"));
+    assert!(codex_args.contains(
+        "Allowed file scope: README.md, project-directives/index.md"
+    ));
+}
+
+#[test]
 fn fails_when_prompt_argument_is_missing() {
     let binary_path =
         std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");

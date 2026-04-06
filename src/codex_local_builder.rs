@@ -15,7 +15,15 @@ impl CodexLocalBuilderAdapter {
     }
 
     fn allowed_file_scope(&self, scholar_output: &ScholarOutput) -> Option<Vec<String>> {
-        if scholar_output.selected_task_scope.contains("README.md") {
+        if scholar_output
+            .selected_task_scope
+            .contains("Modify only README.md and project-directives/index.md.")
+        {
+            Some(vec![
+                "README.md".to_string(),
+                "project-directives/index.md".to_string(),
+            ])
+        } else if scholar_output.selected_task_scope.contains("Modify only README.md.") {
             Some(vec!["README.md".to_string()])
         } else {
             None
