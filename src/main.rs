@@ -1,3 +1,5 @@
+mod entrypoint_cli;
+
 use continuum::{
     Builder,
     BuilderIssue,
@@ -16,8 +18,8 @@ use continuum::{
     SessionRunner,
     SessionStatus,
 };
+use entrypoint_cli::read_cli_runtime_request;
 use std::collections::BTreeSet;
-use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::ExitCode;
@@ -234,28 +236,19 @@ impl Critic for ShellCritic {
 }
 
 fn main() -> ExitCode {
-    let args: Vec<String> = env::args().skip(1).collect();
-
-    if args.len() != 1 || args[0].trim().is_empty() {
-        eprintln!("terminal_outcome=failure");
-        eprintln!("error=expected exactly one non-empty prompt argument");
-        return ExitCode::from(1);
-    }
-
-    let repository_root = match env::current_dir() {
-        Ok(path) => path,
+    let request = match read_cli_runtime_request() {
+        Ok(request) => request,
         Err(error) => {
             eprintln!("terminal_outcome=failure");
-            eprintln!("error=failed to resolve current repository root: {error}");
+            eprintln!("error={error}");
             return ExitCode::from(1);
         }
     };
 
-    let mission = RawMission::new(&args[0]);
     let mut session_runner = SessionRunner::new(
-        Box::new(ShellScholar::new(mission)),
+        Box::new(ShellScholar::new(request.mission)),
         Box::new(ShellPlanner::new()),
-        Box::new(CodexLocalBuilderAdapter::new(repository_root.clone())),
+        Box::new(CodexLocalBuilderAdapter::new(request.repository_root.clone())),
         Box::new(ShellCritic::new()),
     );
 
@@ -265,7 +258,7 @@ fn main() -> ExitCode {
     match result {
         Ok(summary) => {
             println!("terminal_outcome=success");
-            println!("repository_root={}", repository_root.display());
+            println!("repository_root={}", request.repository_root.display());
             if let Some(report) = builder_report.as_ref() {
                 render_builder_report_stdout(report);
             }
@@ -277,7 +270,7 @@ fn main() -> ExitCode {
         }
         Err(report) => {
             eprintln!("terminal_outcome=failure");
-            eprintln!("repository_root={}", repository_root.display());
+            eprintln!("repository_root={}", request.repository_root.display());
             if let Some(builder_report) = builder_report.as_ref() {
                 render_builder_report_stderr(builder_report);
             }
