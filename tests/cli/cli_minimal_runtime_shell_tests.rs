@@ -19,13 +19,16 @@ fn unique_temp_dir(label: &str) -> PathBuf {
 }
 
 fn install_fake_codex(bin_dir: &Path) {
+    install_fake_codex_script(
+        bin_dir,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_ARGS_LOG\"\npwd > \"$CODEX_PWD_LOG\"\nprintf '%s' \"$CODEX_STDOUT\"\nprintf '%s' \"$CODEX_STDERR\" 1>&2\nexit \"$CODEX_EXIT_CODE\"\n",
+    );
+}
+
+fn install_fake_codex_script(bin_dir: &Path, script: &str) {
     let script_path = bin_dir.join("codex");
 
-    fs::write(
-        &script_path,
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_ARGS_LOG\"\npwd > \"$CODEX_PWD_LOG\"\nprintf '%s' \"$CODEX_STDOUT\"\nprintf '%s' \"$CODEX_STDERR\" 1>&2\nexit \"$CODEX_EXIT_CODE\"\n",
-    )
-    .expect("fake codex script should be written");
+    fs::write(&script_path, script).expect("fake codex script should be written");
 
     #[cfg(unix)]
     {
@@ -36,6 +39,19 @@ fn install_fake_codex(bin_dir: &Path) {
         fs::set_permissions(&script_path, permissions)
             .expect("fake codex script should be executable");
     }
+}
+
+fn init_temp_git_repo(label: &str) -> PathBuf {
+    let repo_dir = unique_temp_dir(label);
+    let init_status = Command::new("git")
+        .arg("init")
+        .current_dir(&repo_dir)
+        .output()
+        .expect("git init should launch");
+
+    assert!(init_status.status.success());
+
+    repo_dir
 }
 
 fn prefixed_path(bin_dir: &Path) -> String {
@@ -62,7 +78,7 @@ fn runs_single_session_from_terminal_prompt_on_current_repo() {
     install_fake_codex(&bin_dir);
 
     let output = Command::new(binary_path)
-        .current_dir(repo_root)
+        .current_dir(&repo_root)
         .env("PATH", prefixed_path(&bin_dir))
         .env("CODEX_ARGS_LOG", &args_log)
         .env("CODEX_PWD_LOG", &pwd_log)
@@ -96,10 +112,22 @@ fn runs_single_session_from_terminal_prompt_on_current_repo() {
 }
 
 #[test]
-fn runs_two_file_document_sync_scope_from_terminal_prompt_on_current_repo() {
+fn runs_two_file_document_sync_scope_on_repo_with_both_canonical_files() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
-    let repo_root = env!("CARGO_MANIFEST_DIR");
+    let repo_root = init_temp_git_repo("codex-two-file-success-repo");
+    fs::write(
+        repo_root.join("README.md"),
+        "# Continuum\nSee project-directives/index.md\n",
+    )
+    .expect("README.md should be written");
+    fs::create_dir_all(repo_root.join("project-directives"))
+        .expect("project-directives dir should be created");
+    fs::write(
+        repo_root.join("project-directives/index.md"),
+        "# Project Directives Index\nSee README.md\n",
+    )
+    .expect("project-directives/index.md should be written");
     let temp_dir = unique_temp_dir("codex-two-file-success");
     let bin_dir = temp_dir.join("bin");
     let args_log = temp_dir.join("codex-args.log");
@@ -109,7 +137,7 @@ fn runs_two_file_document_sync_scope_from_terminal_prompt_on_current_repo() {
     install_fake_codex(&bin_dir);
 
     let output = Command::new(binary_path)
-        .current_dir(repo_root)
+        .current_dir(&repo_root)
         .env("PATH", prefixed_path(&bin_dir))
         .env("CODEX_ARGS_LOG", &args_log)
         .env("CODEX_PWD_LOG", &pwd_log)
@@ -137,13 +165,60 @@ fn runs_two_file_document_sync_scope_from_terminal_prompt_on_current_repo() {
     ));
     assert!(stdout.contains("builder_stdout=builder stdout"));
     assert!(stdout.contains("builder_stderr=builder stderr"));
-    assert!(stdout.contains(repo_root));
+    assert!(stdout.contains(&repo_root.display().to_string()));
 
-    assert!(codex_pwd.contains(repo_root));
+    assert!(codex_pwd.contains(&repo_root.display().to_string()));
     assert!(codex_args.contains("exec"));
     assert!(codex_args.contains("-C"));
-    assert!(codex_args.contains(repo_root));
+    assert!(codex_args.contains(&repo_root.display().to_string()));
     assert!(codex_args.contains("Role: Builder"));
+    assert!(codex_args.contains(
+        "Allowed file scope: README.md, project-directives/index.md"
+    ));
+}
+
+#[test]
+fn stops_when_two_file_sync_run_leaves_project_directives_index_missing() {
+    let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
+        .expect("continuum binary should be built for this test");
+    let repo_root = init_temp_git_repo("codex-two-file-missing-index-repo");
+    let temp_dir = unique_temp_dir("codex-two-file-missing-index");
+    let bin_dir = temp_dir.join("bin");
+    let args_log = temp_dir.join("codex-args.log");
+    let pwd_log = temp_dir.join("codex-pwd.log");
+
+    fs::create_dir_all(&bin_dir).expect("fake codex bin dir should be created");
+    install_fake_codex_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_ARGS_LOG\"\npwd > \"$CODEX_PWD_LOG\"\nprintf '# Continuum\\nSee project-directives/index.md\\n' > README.md\nexit 0\n",
+    );
+
+    let output = Command::new(binary_path)
+        .current_dir(&repo_root)
+        .env("PATH", prefixed_path(&bin_dir))
+        .env("CODEX_ARGS_LOG", &args_log)
+        .env("CODEX_PWD_LOG", &pwd_log)
+        .arg(
+            "Synchronize README.md and project-directives/index.md. Modify only README.md and project-directives/index.md.",
+        )
+        .output()
+        .expect("binary should launch");
+
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    let codex_args = fs::read_to_string(&args_log).expect("codex args should be logged");
+    let codex_pwd = fs::read_to_string(&pwd_log).expect("codex working dir should be logged");
+
+    assert!(stderr.contains("terminal_outcome=failure"));
+    assert!(stderr.contains("session_status=stopped"));
+    assert!(stderr.contains("builder_issue=completed"));
+    assert!(stderr.contains("builder_scope_status=within_scope"));
+    assert!(stderr.contains(
+        "builder_allowed_file_scope=README.md,project-directives/index.md"
+    ));
+    assert!(stderr.contains("builder_changed_files=README.md"));
+    assert!(codex_pwd.contains(&repo_root.display().to_string()));
     assert!(codex_args.contains(
         "Allowed file scope: README.md, project-directives/index.md"
     ));

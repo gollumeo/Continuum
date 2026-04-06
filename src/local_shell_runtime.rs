@@ -12,8 +12,8 @@ pub fn build_local_shell_session_runner(
     SessionRunner::new(
         Box::new(ShellScholar::new(mission)),
         Box::new(ShellPlanner::new()),
-        Box::new(CodexLocalBuilderAdapter::new(repository_root)),
-        Box::new(ShellCritic::new()),
+        Box::new(CodexLocalBuilderAdapter::new(repository_root.clone())),
+        Box::new(ShellCritic::new(repository_root)),
     )
 }
 
@@ -64,16 +64,30 @@ impl Planner for ShellPlanner {
     }
 }
 
-struct ShellCritic;
+struct ShellCritic {
+    repository_root: PathBuf,
+}
 
 impl ShellCritic {
-    fn new() -> Self {
-        Self
+    fn new(repository_root: PathBuf) -> Self {
+        Self { repository_root }
     }
 }
 
 impl Critic for ShellCritic {
-    fn run(&mut self, _scholar_output: &ScholarOutput) -> CriticSignal {
+    fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
+        if scholar_output
+            .selected_task_scope
+            .contains("Modify only README.md and project-directives/index.md.")
+        {
+            let readme_path = self.repository_root.join("README.md");
+            let directives_index_path = self.repository_root.join("project-directives/index.md");
+
+            if !readme_path.is_file() || !directives_index_path.is_file() {
+                return CriticSignal::Stop;
+            }
+        }
+
         CriticSignal::Accepted
     }
 }
