@@ -27,7 +27,7 @@ fn stop_session(session: &mut Session) -> FailureReport {
     session.mark_stopped().ok();
 
     FailureReport {
-        final_session_status: session.status,
+        final_session_status: *session.status(),
     }
 }
 

@@ -67,12 +67,12 @@ impl SessionRunner {
 
         if retry_directive == RetryDirective::Complete {
             self.session.mark_completed().map_err(|_| FailureReport {
-                final_session_status: self.session.status,
+                final_session_status: *self.session.status(),
             })?;
         }
 
         Ok(SessionSummary {
-            final_session_status: self.session.status,
+            final_session_status: *self.session.status(),
         })
     }
 
@@ -104,7 +104,7 @@ impl SessionRunner {
     }
 
     pub fn session_status(&self) -> &SessionStatus {
-        &self.session.status
+        self.session.status()
     }
 
     pub fn last_builder_report(&self) -> Option<&BuilderRunReport> {

@@ -11,7 +11,7 @@ pub enum SessionError {
 }
 
 pub struct Session {
-    pub status: SessionStatus,
+    status: SessionStatus,
 }
 
 impl Session {
@@ -19,6 +19,10 @@ impl Session {
         Self {
             status: SessionStatus::Active,
         }
+    }
+
+    pub fn status(&self) -> &SessionStatus {
+        &self.status
     }
 
     pub fn mark_completed(&mut self) -> Result<(), SessionError> {
