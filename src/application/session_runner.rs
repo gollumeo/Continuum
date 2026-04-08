@@ -5,6 +5,12 @@ use crate::application::runtime_policy::{
 };
 use crate::domain::*;
 
+const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
+    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.";
+
+const INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED: &str =
+    "exhausted retry budget while confirming increment contract tests";
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct SessionSummary {
     pub final_session_status: SessionStatus,
@@ -13,6 +19,7 @@ pub struct SessionSummary {
 #[derive(Debug, PartialEq, Eq)]
 pub struct FailureReport {
     pub final_session_status: SessionStatus,
+    pub error: Option<&'static str>,
 }
 
 pub struct SessionRunner {
@@ -68,6 +75,7 @@ impl SessionRunner {
         if retry_directive == RetryDirective::Complete {
             self.session.mark_completed().map_err(|_| FailureReport {
                 final_session_status: *self.session.status(),
+                error: None,
             })?;
         }
 
@@ -96,11 +104,22 @@ impl SessionRunner {
         let post_critic_decision =
             PostCriticDecisionPolicy::admit_or_stop(final_decision, &mut self.session)?;
 
-        RetryPolicy::authorize_or_stop(
+        let retry_result = RetryPolicy::authorize_or_stop(
             post_critic_decision,
             &mut self.retry_budget_remaining,
             &mut self.session,
-        )
+        );
+
+        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT
+            && post_critic_signal == crate::application::post_critic_signal::PostCriticSignal::RevisionRequired
+        {
+            return retry_result.map_err(|mut report| {
+                report.error = Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED);
+                report
+            });
+        }
+
+        retry_result
     }
 
     pub fn session_status(&self) -> &SessionStatus {

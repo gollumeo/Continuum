@@ -175,6 +175,7 @@ fn stops_when_initial_planner_decision_is_not_admitted_pre_build() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
@@ -210,6 +211,7 @@ fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
@@ -217,6 +219,43 @@ fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
         *activations.borrow(),
         vec![SCHOLAR, PLANNER]
     );
+}
+
+#[test]
+fn stops_before_builder_when_initial_planner_refuses_underspecified_document_prompt() {
+    let activations = Rc::new(RefCell::new(Vec::new()));
+
+    let mut runner = SessionRunner::new_with_retry_budget(
+        2,
+        Box::new(RecordingScholar {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingPlanner {
+            activations: Rc::clone(&activations),
+            decisions: vec![SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt],
+        }),
+        Box::new(RecordingBuilder {
+            activations: Rc::clone(&activations),
+        }),
+        Box::new(RecordingCritic {
+            activations: Rc::clone(&activations),
+        }),
+    );
+
+    let result = runner.run();
+
+    assert_eq!(
+        result,
+        Err(FailureReport {
+            final_session_status: SessionStatus::Stopped,
+            error: Some(
+                "refused to act on an underspecified document prompt; add an explicit allowed file scope",
+            ),
+        })
+    );
+    assert_eq!(runner.session_status(), &SessionStatus::Stopped);
+    assert!(runner.last_builder_report().is_none());
+    assert_eq!(*activations.borrow(), vec![SCHOLAR, PLANNER]);
 }
 
 #[test]
@@ -245,6 +284,7 @@ fn stops_when_critic_returns_stop_signal() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(
@@ -279,6 +319,7 @@ fn stops_when_builder_report_is_not_successful() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
@@ -317,6 +358,7 @@ fn returns_failure_report_when_critic_stops_session() {
         failure_report,
         FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         }
     );
 }
@@ -347,6 +389,7 @@ fn stops_when_post_critic_planner_returns_build_in_planner_deciding() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
@@ -383,6 +426,7 @@ fn does_not_call_builder_again_after_terminal_stop() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(
@@ -426,6 +470,7 @@ fn stops_when_planner_requests_retry_without_budget() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(
@@ -468,6 +513,7 @@ fn stops_when_revision_requires_retry_but_no_budget_is_available() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(
@@ -511,6 +557,7 @@ fn stops_after_consuming_last_retry_budget_when_revision_is_requested_again() {
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(
@@ -560,6 +607,7 @@ fn stops_after_third_revision_request_when_retry_budget_of_two_is_fully_consumed
         result,
         Err(FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         })
     );
     assert_eq!(

@@ -112,6 +112,7 @@ fn stops_when_budget_is_exhausted() {
         failure_report,
         FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         }
     );
     assert_eq!(
@@ -154,6 +155,7 @@ fn stops_session_when_runtime_revision_is_requested_again_without_retry_budget()
         failure_report,
         FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         }
     );
     assert_eq!(

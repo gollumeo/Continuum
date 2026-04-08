@@ -11,6 +11,9 @@ pub struct CriticSignalPolicy;
 pub struct PostCriticDecisionPolicy;
 pub struct RetryPolicy;
 
+const UNDERSPECIFIED_DOCUMENT_PROMPT_REFUSAL: &str =
+    "refused to act on an underspecified document prompt; add an explicit allowed file scope";
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PostCriticDecision {
     Retry,
@@ -24,10 +27,15 @@ pub enum RetryDirective {
 }
 
 fn stop_session(session: &mut Session) -> FailureReport {
+    stop_session_with_error(session, None)
+}
+
+fn stop_session_with_error(session: &mut Session, error: Option<&'static str>) -> FailureReport {
     session.mark_stopped().ok();
 
     FailureReport {
         final_session_status: *session.status(),
+        error,
     }
 }
 
@@ -51,6 +59,9 @@ impl PreBuildPolicy {
     ) -> Result<(), FailureReport> {
         match decision {
             SessionFlowDecision::Build => Ok(()),
+            SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt => Err(
+                stop_session_with_error(session, Some(UNDERSPECIFIED_DOCUMENT_PROMPT_REFUSAL)),
+            ),
             SessionFlowDecision::Retry | SessionFlowDecision::Complete => Err(stop_session(session)),
         }
     }
@@ -77,7 +88,8 @@ impl PostCriticDecisionPolicy {
         match decision {
             SessionFlowDecision::Retry => Ok(PostCriticDecision::Retry),
             SessionFlowDecision::Complete => Ok(PostCriticDecision::Complete),
-            SessionFlowDecision::Build => Err(stop_session(session)),
+            SessionFlowDecision::Build
+            | SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt => Err(stop_session(session)),
         }
     }
 }

@@ -30,7 +30,7 @@ fn main() -> ExitCode {
             Some(&request.repository_root),
             builder_report.as_ref(),
             Some(report.final_session_status),
-            None,
+            report.error,
         ),
     }
 }

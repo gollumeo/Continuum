@@ -90,6 +90,7 @@ fn session_runner_intercepts_terminal_stop_before_post_critic_planner() {
         failure_report,
         FailureReport {
             final_session_status: SessionStatus::Stopped,
+            error: None,
         }
     );
     assert_eq!(

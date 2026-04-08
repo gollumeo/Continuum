@@ -5,6 +5,12 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 
+const INCREMENT_CONTRACT_FIX_PROMPT: &str =
+    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.";
+
+const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
+    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.";
+
 pub struct CodexLocalBuilderAdapter {
     repository_root: PathBuf,
 }
@@ -15,7 +21,11 @@ impl CodexLocalBuilderAdapter {
     }
 
     fn allowed_file_scope(&self, scholar_output: &ScholarOutput) -> Option<Vec<String>> {
-        if scholar_output
+        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT {
+            Some(vec!["src/lib.rs".to_string()])
+        } else if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
+            Some(vec!["src/lib.rs".to_string()])
+        } else if scholar_output
             .selected_task_scope
             .contains("Modify only README.md and project-directives/index.md.")
         {
@@ -178,4 +188,53 @@ fn parse_git_status_paths(status_output: &str) -> BTreeSet<String> {
                 .to_string()
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_increment_contract_fix_and_zero_confirm_prompt_injects_only_src_lib_rs_scope() {
+        let builder = CodexLocalBuilderAdapter::new(PathBuf::from("/tmp/repo"));
+        let scholar_output = ScholarOutput::new(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
+        );
+
+        assert_eq!(builder.allowed_file_scope(&scholar_output), Some(vec!["src/lib.rs".to_string()]));
+    }
+
+    #[test]
+    fn increment_contract_fix_and_zero_confirm_prompt_rejects_broader_scope_variation() {
+        let builder = CodexLocalBuilderAdapter::new(PathBuf::from("/tmp/repo"));
+        let scholar_output = ScholarOutput::new(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs and tests/increment_contract.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs and tests/increment_contract.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
+        );
+
+        assert_eq!(builder.allowed_file_scope(&scholar_output), None);
+    }
+
+    #[test]
+    fn exact_increment_contract_fix_prompt_injects_only_src_lib_rs_scope() {
+        let builder = CodexLocalBuilderAdapter::new(PathBuf::from("/tmp/repo"));
+        let scholar_output = ScholarOutput::new(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+        );
+
+        assert_eq!(builder.allowed_file_scope(&scholar_output), Some(vec!["src/lib.rs".to_string()]));
+    }
+
+    #[test]
+    fn increment_contract_fix_prompt_rejects_any_non_src_lib_rs_scope_variation() {
+        let builder = CodexLocalBuilderAdapter::new(PathBuf::from("/tmp/repo"));
+        let scholar_output = ScholarOutput::new(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/main.rs.",
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/main.rs.",
+        );
+
+        assert_eq!(builder.allowed_file_scope(&scholar_output), None);
+    }
 }

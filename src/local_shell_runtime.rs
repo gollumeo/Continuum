@@ -5,16 +5,37 @@ use continuum::{
 };
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
+
+const INCREMENT_CONTRACT_FIX_PROMPT: &str =
+    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.";
+
+const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
+    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.";
+
+fn is_increment_contract_fix_prompt(prompt: &str) -> bool {
+    prompt == INCREMENT_CONTRACT_FIX_PROMPT
+}
+
+fn is_increment_contract_fix_and_zero_confirm_prompt(prompt: &str) -> bool {
+    prompt == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT
+}
 
 pub fn build_local_shell_session_runner(
     mission: RawMission,
     repository_root: PathBuf,
 ) -> SessionRunner {
+    let is_increment_contract_fix = is_increment_contract_fix_prompt(&mission.content);
+    let is_increment_contract_fix_and_zero_confirm =
+        is_increment_contract_fix_and_zero_confirm_prompt(&mission.content);
     let is_two_file_document_sync = mission
         .content
         .contains("Modify only README.md and project-directives/index.md.");
 
-    if is_two_file_document_sync {
+    if is_increment_contract_fix
+        || is_increment_contract_fix_and_zero_confirm
+        || is_two_file_document_sync
+    {
         SessionRunner::new_with_retry_budget(
             1,
             Box::new(ShellScholar::new(mission)),
@@ -66,7 +87,11 @@ impl ShellPlanner {
 
 impl Planner for ShellPlanner {
     fn decide(&mut self, _scholar_output: &ScholarOutput) -> SessionFlowDecision {
-        SessionFlowDecision::Build
+        if _scholar_output.selected_task_scope == "Generate the README.md for this repository." {
+            SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt
+        } else {
+            SessionFlowDecision::Build
+        }
     }
 
     fn decide_with_critic_signal(
@@ -91,6 +116,74 @@ impl ShellCritic {
 
 impl Critic for ShellCritic {
     fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
+        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT {
+            let command_a_status = match Command::new("cargo")
+                .current_dir(&self.repository_root)
+                .args([
+                    "test",
+                    "--test",
+                    "increment_contract",
+                    "increment_adds_one_to_input",
+                    "--",
+                    "--exact",
+                ])
+                .status()
+            {
+                Ok(status) => status,
+                Err(_) => return CriticSignal::Stop,
+            };
+
+            if !command_a_status.success() {
+                return CriticSignal::RevisionRequired;
+            }
+
+            let command_b_status = match Command::new("cargo")
+                .current_dir(&self.repository_root)
+                .args([
+                    "test",
+                    "--test",
+                    "increment_contract",
+                    "increment_adds_one_to_zero",
+                    "--",
+                    "--exact",
+                ])
+                .status()
+            {
+                Ok(status) => status,
+                Err(_) => return CriticSignal::Stop,
+            };
+
+            return if command_b_status.success() {
+                CriticSignal::Accepted
+            } else {
+                CriticSignal::RevisionRequired
+            };
+        }
+
+        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
+            let status = match Command::new("cargo")
+                .current_dir(&self.repository_root)
+                .args([
+                    "test",
+                    "--test",
+                    "increment_contract",
+                    "increment_adds_one_to_input",
+                    "--",
+                    "--exact",
+                ])
+                .status()
+            {
+                Ok(status) => status,
+                Err(_) => return CriticSignal::Stop,
+            };
+
+            return if status.success() {
+                CriticSignal::Accepted
+            } else {
+                CriticSignal::RevisionRequired
+            };
+        }
+
         if scholar_output
             .selected_task_scope
             .contains("Modify only README.md and project-directives/index.md.")
@@ -119,5 +212,47 @@ impl Critic for ShellCritic {
         }
 
         CriticSignal::Accepted
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn increment_contract_fix_and_zero_confirm_prompt_admission_is_exact() {
+        assert!(is_increment_contract_fix_and_zero_confirm_prompt(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
+        ));
+        assert!(!is_increment_contract_fix_and_zero_confirm_prompt(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+        ));
+        assert!(!is_increment_contract_fix_and_zero_confirm_prompt(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_one' in tests/increment_contract.rs also passes.",
+        ));
+    }
+
+    #[test]
+    fn increment_contract_fix_prompt_admission_is_exact() {
+        assert!(is_increment_contract_fix_prompt(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+        ));
+        assert!(!is_increment_contract_fix_prompt(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/main.rs.",
+        ));
+    }
+
+    #[test]
+    fn planner_refuses_generate_readme_prompt_without_explicit_allowed_scope() {
+        let mut planner = ShellPlanner::new();
+        let scholar_output = ScholarOutput::new(
+            "Generate the README.md for this repository.",
+            "Generate the README.md for this repository.",
+        );
+
+        assert_eq!(
+            planner.decide(&scholar_output),
+            SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt,
+        );
     }
 }
