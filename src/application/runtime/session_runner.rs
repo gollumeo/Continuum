@@ -1,4 +1,5 @@
-use crate::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
+use crate::application::actors::{Builder, Critic, Planner, Scholar};
+use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::application::runtime::runtime_use_case_authority::{
     select_runtime_use_case_authority, RuntimeTerminalRule,
 };

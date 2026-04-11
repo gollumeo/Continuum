@@ -1,4 +1,4 @@
-use crate::application::actors::BuilderRunReport;
+use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::application::runtime::critic_signal::CriticSignal;
 use crate::application::runtime::post_critic_signal::PostCriticSignal;
 use crate::application::runtime::session_flow_decision::SessionFlowDecision;

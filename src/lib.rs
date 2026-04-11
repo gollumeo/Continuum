@@ -3,12 +3,14 @@ mod application;
 
 pub use application::actors::{
     Builder,
-    BuilderIssue,
-    BuilderRunReport,
-    BuilderScopeStatus,
     Critic,
     Planner,
     Scholar,
+};
+pub use application::runtime::builder_run_report::{
+    BuilderIssue,
+    BuilderRunReport,
+    BuilderScopeStatus,
 };
 pub use application::runtime::critic_signal::CriticSignal;
 pub use application::runtime::post_critic_signal::PostCriticSignal;
