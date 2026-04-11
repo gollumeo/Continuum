@@ -1,4 +1,5 @@
 pub mod builder_run_report;
+pub mod critic;
 pub mod critic_signal;
 pub mod post_critic_signal;
 pub mod post_critic_planner;

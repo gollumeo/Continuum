@@ -1,4 +1,3 @@
-use crate::application::runtime::critic_signal::CriticSignal;
 use crate::application::runtime::post_critic_signal::PostCriticSignal;
 use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::domain::ScholarOutput;
@@ -22,8 +21,4 @@ pub trait Planner {
 
 pub trait Builder {
     fn run(&mut self, scholar_output: &ScholarOutput) -> BuilderRunReport;
-}
-
-pub trait Critic {
-    fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal;
 }
