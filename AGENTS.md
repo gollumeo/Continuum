@@ -52,3 +52,58 @@ This file codifies only rules already justified in this repository by the curren
 - Report whether the run completed, retried, or stopped, and the exact number of attempts consumed.
 - Report the exact files changed.
 - Do not claim any capability unless that exact prompt, exact file scope, exact command, exact refusal, and exact terminal outcome are proved by repository evidence.
+
+## 7. Transverse Coherence Rule
+
+- Evaluate every local change against repository-wide coherence before accepting it, including: layer coherence (`domain` / `application` / `infrastructure`), responsibility coherence, public surface coherence in `lib.rs`, repository geography coherence, and proof-surface coherence across tests.
+- Reject any local change that passes the current test but introduces a cross-repository incoherence in layering, responsibility placement, public exports, file geography, or test-surface alignment.
+- Reject any local change that makes one repository area more coherent only by making another area less coherent.
+- If a local change introduces a transverse incoherence and no accepted repository mandate explicitly authorizes that repository-wide change, stop immediately and report the exact tension.
+
+## 8. Non-Fragmentation Rule
+
+- Reject any change that improves one local case at the price of degrading the repository's global coherence.
+- Reject any "minimal slice" that is locally correct but leaves the repository with a new divergence of structure, responsibility, public surface, or proof organization.
+- Treat repository-scale consistency as a validity condition of every local decision, not as optional cleanup for later.
+- Do not accept a local slice as complete unless it is valid both for the current exact test and for the current repository structure as a whole.
+
+## 9. Structural Tension Handling Rule
+
+- If a structural incoherence is detected while executing a local change, stop immediately in execution mode and report the exact incoherence instead of partially correcting it.
+- If the user is explicitly working in architecture or mandate-design mode, convert the detected incoherence into a proposal for a separate repository mandate rather than fixing it opportunistically.
+- Reject any partial structural fix that would leave the repository in a half-migrated or locally special-cased state.
+- Reject any hidden scope expansion used to "make the problem go away" when the real issue is a repository-level structural tension.
+
+## 10. Strict Change Typology Rule
+
+- Classify every requested change as exactly one of the following and only one: structural refactor (repository geography only), doctrinal refactor (modeling, naming, or responsibility boundaries), or functional extension (new behavior).
+- Reject any implementation that mixes these categories inside one change unless an accepted repository mandate explicitly authorizes that exact mixed scope.
+- For structural refactor work, reject any logic change, naming change, responsibility redesign, or behavioral extension.
+- For doctrinal refactor work, reject any opportunistic behavior change or repository-geography rewrite not required by the accepted mandate.
+- For functional extension work, reject any unmandated structural cleanup or doctrinal correction performed "while here".
+- If completing the requested work would require changing category, stop and ask for arbitration or a separate mandate.
+
+## 11. Slice Drift Prevention and Transverse Validation Rule
+
+- Allow local slices only when they preserve repository-wide coherence and do not introduce a new implicit pattern, a new unstated convention, or a new divergence of structure or responsibility.
+- Reject any slice that teaches the repository a new pattern, naming convention, layer exception, export rule, or test-placement rule without an accepted repository-level mandate for that exact convention.
+- Accept a change only if it can be described as either: (1) a local improvement with no repository-wide incoherence, or (2) a repository-level change explicitly mandated at repository scope.
+- If a change cannot be described in one of those two ways, reject it.
+
+## 12. Demonstrable Coherence Requirement
+
+- A change is considered coherent only if the agent can explicitly demonstrate, before applying it, that it preserves: layer boundaries (`domain` must not depend on `application` or `infrastructure`); responsibility isolation (no file gains a second unrelated responsibility); public surface stability (no unintended change in `lib.rs` exposure); repository geography consistency (files remain aligned with their layer purpose); and proof-surface alignment (tests still reflect the same scope and intent).
+- If coherence cannot be explicitly demonstrated on all these axes, the change must be rejected.
+- `Seems consistent`, `likely coherent`, or `no obvious issue` are invalid justifications.
+
+## 13. Default Deny Rule
+
+- Any change that is not explicitly allowed by: a current failing repository test, and an accepted repository use case or mandate, and all coherence rules in this document, must be rejected.
+- If there is uncertainty about whether a change is allowed, coherent, or within scope, the agent must stop and report instead of proceeding.
+- Absence of explicit prohibition does not imply permission.
+
+## 14. Pre-Action Justification Constraint
+
+- Before applying any non-trivial change, the agent must be able to state: which exact rule allows the change, which exact test requires it, and why no smaller change would satisfy the same constraint.
+- If this justification cannot be stated clearly and concretely before the change, the change must not be applied.
+- Post-hoc justification is invalid.
