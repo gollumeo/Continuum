@@ -117,7 +117,7 @@ impl SessionRunner {
                 select_runtime_use_case_authority(&scholar_output.selected_task_scope)
             {
                 if authority.terminal_rule
-                    == RuntimeTerminalRule::IncrementContractConfirmationRetryExhausted
+                    == Some(RuntimeTerminalRule::IncrementContractConfirmationRetryExhausted)
                 {
                     return retry_result.map_err(|mut report| {
                         report.error = Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED);

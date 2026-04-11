@@ -21,14 +21,17 @@ impl CodexLocalBuilderAdapter {
     fn allowed_file_scope(&self, scholar_output: &ScholarOutput) -> Option<Vec<String>> {
         if let Some(authority) = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
         {
-            Some(
-                authority
-                    .builder_allowed_file_scope
-                    .iter()
-                    .map(|path| (*path).to_string())
-                    .collect(),
-            )
-        } else if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
+            if let Some(builder_allowed_file_scope) = authority.builder_allowed_file_scope {
+                return Some(
+                    builder_allowed_file_scope
+                        .iter()
+                        .map(|path| (*path).to_string())
+                        .collect(),
+                );
+            }
+        }
+
+        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
             Some(vec!["src/lib.rs".to_string()])
         } else if scholar_output
             .selected_task_scope

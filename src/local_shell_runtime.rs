@@ -119,7 +119,30 @@ impl Critic for ShellCritic {
         if let Some(authority) = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
         {
             match authority.critic_proof_rule {
-                CriticProofRule::IncrementContractFixAndZeroConfirm => {
+                Some(CriticProofRule::IncrementContractFix) => {
+                    let status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
+                        .args([
+                            "test",
+                            "--test",
+                            "increment_contract",
+                            "increment_adds_one_to_input",
+                            "--",
+                            "--exact",
+                        ])
+                        .status()
+                    {
+                        Ok(status) => status,
+                        Err(_) => return CriticSignal::Stop,
+                    };
+
+                    return if status.success() {
+                        CriticSignal::Accepted
+                    } else {
+                        CriticSignal::RevisionRequired
+                    };
+                }
+                Some(CriticProofRule::IncrementContractFixAndZeroConfirm) => {
                     let command_a_status = match Command::new("cargo")
                         .current_dir(&self.repository_root)
                         .args([
@@ -162,31 +185,8 @@ impl Critic for ShellCritic {
                         CriticSignal::RevisionRequired
                     };
                 }
+                None => {}
             }
-        }
-
-        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
-            let status = match Command::new("cargo")
-                .current_dir(&self.repository_root)
-                .args([
-                    "test",
-                    "--test",
-                    "increment_contract",
-                    "increment_adds_one_to_input",
-                    "--",
-                    "--exact",
-                ])
-                .status()
-            {
-                Ok(status) => status,
-                Err(_) => return CriticSignal::Stop,
-            };
-
-            return if status.success() {
-                CriticSignal::Accepted
-            } else {
-                CriticSignal::RevisionRequired
-            };
         }
 
         if scholar_output
