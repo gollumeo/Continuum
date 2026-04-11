@@ -1,7 +1,8 @@
 use crate::codex_local_builder::CodexLocalBuilderAdapter;
 use continuum::{
-    Critic, CriticSignal, MissionScholar, Planner, PostCriticPlanner, PostCriticSignal,
-    RawMission, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
+    select_runtime_use_case_authority, Critic, CriticProofRule, CriticSignal, MissionScholar,
+    Planner, PostCriticPlanner, PostCriticSignal, RawMission, RuntimeUseCase, Scholar,
+    ScholarOutput, SessionFlowDecision, SessionRunner,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -10,15 +11,14 @@ use std::process::Command;
 const INCREMENT_CONTRACT_FIX_PROMPT: &str =
     "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.";
 
-const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
-    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.";
-
 fn is_increment_contract_fix_prompt(prompt: &str) -> bool {
     prompt == INCREMENT_CONTRACT_FIX_PROMPT
 }
 
 fn is_increment_contract_fix_and_zero_confirm_prompt(prompt: &str) -> bool {
-    prompt == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT
+    select_runtime_use_case_authority(prompt)
+        .map(|authority| authority.use_case == RuntimeUseCase::IncrementContractFixAndZeroConfirm)
+        .unwrap_or(false)
 }
 
 pub fn build_local_shell_session_runner(
@@ -116,48 +116,53 @@ impl ShellCritic {
 
 impl Critic for ShellCritic {
     fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
-        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT {
-            let command_a_status = match Command::new("cargo")
-                .current_dir(&self.repository_root)
-                .args([
-                    "test",
-                    "--test",
-                    "increment_contract",
-                    "increment_adds_one_to_input",
-                    "--",
-                    "--exact",
-                ])
-                .status()
-            {
-                Ok(status) => status,
-                Err(_) => return CriticSignal::Stop,
-            };
+        if let Some(authority) = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
+        {
+            match authority.critic_proof_rule {
+                CriticProofRule::IncrementContractFixAndZeroConfirm => {
+                    let command_a_status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
+                        .args([
+                            "test",
+                            "--test",
+                            "increment_contract",
+                            "increment_adds_one_to_input",
+                            "--",
+                            "--exact",
+                        ])
+                        .status()
+                    {
+                        Ok(status) => status,
+                        Err(_) => return CriticSignal::Stop,
+                    };
 
-            if !command_a_status.success() {
-                return CriticSignal::RevisionRequired;
+                    if !command_a_status.success() {
+                        return CriticSignal::RevisionRequired;
+                    }
+
+                    let command_b_status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
+                        .args([
+                            "test",
+                            "--test",
+                            "increment_contract",
+                            "increment_adds_one_to_zero",
+                            "--",
+                            "--exact",
+                        ])
+                        .status()
+                    {
+                        Ok(status) => status,
+                        Err(_) => return CriticSignal::Stop,
+                    };
+
+                    return if command_b_status.success() {
+                        CriticSignal::Accepted
+                    } else {
+                        CriticSignal::RevisionRequired
+                    };
+                }
             }
-
-            let command_b_status = match Command::new("cargo")
-                .current_dir(&self.repository_root)
-                .args([
-                    "test",
-                    "--test",
-                    "increment_contract",
-                    "increment_adds_one_to_zero",
-                    "--",
-                    "--exact",
-                ])
-                .status()
-            {
-                Ok(status) => status,
-                Err(_) => return CriticSignal::Stop,
-            };
-
-            return if command_b_status.success() {
-                CriticSignal::Accepted
-            } else {
-                CriticSignal::RevisionRequired
-            };
         }
 
         if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {

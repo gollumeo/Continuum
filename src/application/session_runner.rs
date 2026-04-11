@@ -1,12 +1,12 @@
 use crate::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
+use crate::application::runtime_use_case_authority::{
+    select_runtime_use_case_authority, RuntimeTerminalRule,
+};
 use crate::application::runtime_policy::{
     BuilderOutcomePolicy, CriticSignalPolicy, PostCriticDecisionPolicy, PreBuildPolicy,
     RetryDirective, RetryPolicy,
 };
 use crate::domain::*;
-
-const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
-    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.";
 
 const INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED: &str =
     "exhausted retry budget while confirming increment contract tests";
@@ -110,13 +110,21 @@ impl SessionRunner {
             &mut self.session,
         );
 
-        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT
-            && post_critic_signal == crate::application::post_critic_signal::PostCriticSignal::RevisionRequired
+        if post_critic_signal
+            == crate::application::post_critic_signal::PostCriticSignal::RevisionRequired
         {
-            return retry_result.map_err(|mut report| {
-                report.error = Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED);
-                report
-            });
+            if let Some(authority) =
+                select_runtime_use_case_authority(&scholar_output.selected_task_scope)
+            {
+                if authority.terminal_rule
+                    == RuntimeTerminalRule::IncrementContractConfirmationRetryExhausted
+                {
+                    return retry_result.map_err(|mut report| {
+                        report.error = Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED);
+                        report
+                    });
+                }
+            }
         }
 
         retry_result
