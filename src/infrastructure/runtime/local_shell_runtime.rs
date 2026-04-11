@@ -1,4 +1,4 @@
-use crate::codex_local_builder::CodexLocalBuilderAdapter;
+use crate::infrastructure::execution::codex_local_builder::CodexLocalBuilderAdapter;
 use continuum::{
     select_runtime_use_case_authority, Critic, CriticProofRule, CriticSignal, MissionScholar,
     Planner, PostCriticPlanner, PostCriticSignal, RawMission, RuntimeUseCase, Scholar,

@@ -1,8 +1,8 @@
-use crate::application::critic_signal::CriticSignal;
-use crate::application::post_critic_signal::PostCriticSignal;
 use crate::application::actors::BuilderRunReport;
-use crate::application::session_flow_decision::SessionFlowDecision;
-use crate::application::session_runner::FailureReport;
+use crate::application::runtime::critic_signal::CriticSignal;
+use crate::application::runtime::post_critic_signal::PostCriticSignal;
+use crate::application::runtime::session_flow_decision::SessionFlowDecision;
+use crate::application::runtime::session_runner::FailureReport;
 use crate::domain::Session;
 
 pub struct BuilderOutcomePolicy;

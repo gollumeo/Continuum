@@ -1,12 +1,9 @@
-mod entrypoint_cli;
-mod codex_local_builder;
-mod local_shell_runtime;
-mod terminal_rendering;
+mod infrastructure;
 
-use entrypoint_cli::read_cli_runtime_request;
-use local_shell_runtime::build_local_shell_session_runner;
+use infrastructure::cli::entrypoint_cli::read_cli_runtime_request;
+use infrastructure::cli::terminal_rendering::{render_failure, render_success};
+use infrastructure::runtime::local_shell_runtime::build_local_shell_session_runner;
 use std::process::ExitCode;
-use terminal_rendering::{render_failure, render_success};
 
 fn main() -> ExitCode {
     let request = match read_cli_runtime_request() {

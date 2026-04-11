@@ -28,15 +28,31 @@ path = "tests/domain/scholar_output_tests.rs"
 
 [[test]]
 name = "scholar_tests"
-path = "tests/domain/scholar_tests.rs"
+path = "tests/application/scholar_tests.rs"
+
+[[test]]
+name = "runtime_critic_signal_tests"
+path = "tests/application/runtime/runtime_critic_signal_tests.rs"
+
+[[test]]
+name = "runtime_planner_revision_tests"
+path = "tests/application/runtime/runtime_planner_revision_tests.rs"
+
+[[test]]
+name = "runtime_use_case_authority_tests"
+path = "tests/application/runtime/runtime_use_case_authority_tests.rs"
+
+[[test]]
+name = "runtime_stop_interception_tests"
+path = "tests/application/session_runner/runtime_stop_interception_tests.rs"
 
 [[test]]
 name = "session_runner_happy_path_tests"
-path = "tests/session_runner/session_runner_happy_path_tests.rs"
+path = "tests/application/session_runner/session_runner_happy_path_tests.rs"
 
 [[test]]
 name = "session_runner_failure_tests"
-path = "tests/session_runner/session_runner_failure_tests.rs"
+path = "tests/application/session_runner/session_runner_failure_tests.rs"
 
 [[test]]
 name = "session_e2e_happy_path_tests"
@@ -52,4 +68,4 @@ path = "tests/e2e/session_e2e_with_data_tests.rs"
 
 [[test]]
 name = "cli_minimal_runtime_shell_tests"
-path = "tests/cli/cli_minimal_runtime_shell_tests.rs"
+path = "tests/infrastructure/cli/cli_minimal_runtime_shell_tests.rs"

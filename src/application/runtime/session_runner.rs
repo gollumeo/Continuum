@@ -1,8 +1,8 @@
 use crate::application::actors::{Builder, BuilderRunReport, Critic, Planner, Scholar};
-use crate::application::runtime_use_case_authority::{
+use crate::application::runtime::runtime_use_case_authority::{
     select_runtime_use_case_authority, RuntimeTerminalRule,
 };
-use crate::application::runtime_policy::{
+use crate::application::runtime::runtime_policy::{
     BuilderOutcomePolicy, CriticSignalPolicy, PostCriticDecisionPolicy, PreBuildPolicy,
     RetryDirective, RetryPolicy,
 };
@@ -111,7 +111,7 @@ impl SessionRunner {
         );
 
         if post_critic_signal
-            == crate::application::post_critic_signal::PostCriticSignal::RevisionRequired
+            == crate::application::runtime::post_critic_signal::PostCriticSignal::RevisionRequired
         {
             if let Some(authority) =
                 select_runtime_use_case_authority(&scholar_output.selected_task_scope)
