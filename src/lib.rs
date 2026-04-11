@@ -8,11 +8,11 @@ pub use application::actors::{
     BuilderScopeStatus,
     Critic,
     Planner,
-    PostCriticPlanner,
     Scholar,
 };
 pub use application::runtime::critic_signal::CriticSignal;
 pub use application::runtime::post_critic_signal::PostCriticSignal;
+pub use application::runtime::post_critic_planner::PostCriticPlanner;
 pub use application::runtime::runtime_use_case_authority::{
     select_runtime_use_case_authority, CriticProofRule, RuntimeTerminalRule, RuntimeUseCase,
     RuntimeUseCaseAuthority,
