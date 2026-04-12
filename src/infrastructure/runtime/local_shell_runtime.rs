@@ -8,11 +8,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-const INCREMENT_CONTRACT_FIX_PROMPT: &str =
-    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.";
-
-fn is_increment_contract_fix_prompt(prompt: &str) -> bool {
-    prompt == INCREMENT_CONTRACT_FIX_PROMPT
+fn is_increment_contract_fix_use_case(prompt: &str) -> bool {
+    select_runtime_use_case_authority(prompt)
+        .map(|authority| authority.use_case == RuntimeUseCase::IncrementContractFix)
+        .unwrap_or(false)
 }
 
 fn is_increment_contract_fix_and_zero_confirm_prompt(prompt: &str) -> bool {
@@ -25,7 +24,7 @@ pub fn build_local_shell_session_runner(
     mission: RawMission,
     repository_root: PathBuf,
 ) -> SessionRunner {
-    let is_increment_contract_fix = is_increment_contract_fix_prompt(&mission.content);
+    let is_increment_contract_fix = is_increment_contract_fix_use_case(&mission.content);
     let is_increment_contract_fix_and_zero_confirm =
         is_increment_contract_fix_and_zero_confirm_prompt(&mission.content);
     let is_two_file_document_sync = mission
@@ -239,10 +238,10 @@ mod tests {
 
     #[test]
     fn increment_contract_fix_prompt_admission_is_exact() {
-        assert!(is_increment_contract_fix_prompt(
+        assert!(is_increment_contract_fix_use_case(
             "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
         ));
-        assert!(!is_increment_contract_fix_prompt(
+        assert!(!is_increment_contract_fix_use_case(
             "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/main.rs.",
         ));
     }
