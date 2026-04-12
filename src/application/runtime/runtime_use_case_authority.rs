@@ -31,7 +31,7 @@ const INCREMENT_CONTRACT_FIX_AND_ZERO_CONFIRM_PROMPT: &str =
 
 const INCREMENT_CONTRACT_FIX_AUTHORITY: RuntimeUseCaseAuthority = RuntimeUseCaseAuthority {
     use_case: RuntimeUseCase::IncrementContractFix,
-    builder_allowed_file_scope: None,
+    builder_allowed_file_scope: Some(&["src/lib.rs"]),
     critic_proof_rule: Some(CriticProofRule::IncrementContractFix),
     terminal_rule: None,
 };

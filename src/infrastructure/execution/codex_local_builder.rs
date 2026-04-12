@@ -6,9 +6,6 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-const INCREMENT_CONTRACT_FIX_PROMPT: &str =
-    "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.";
-
 pub struct CodexLocalBuilderAdapter {
     repository_root: PathBuf,
 }
@@ -31,9 +28,7 @@ impl CodexLocalBuilderAdapter {
             }
         }
 
-        if scholar_output.selected_task_scope == INCREMENT_CONTRACT_FIX_PROMPT {
-            Some(vec!["src/lib.rs".to_string()])
-        } else if scholar_output
+        if scholar_output
             .selected_task_scope
             .contains("Modify only README.md and project-directives/index.md.")
         {
