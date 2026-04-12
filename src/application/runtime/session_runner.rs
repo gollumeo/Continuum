@@ -2,17 +2,12 @@ use crate::application::actors::{Planner, Scholar};
 use crate::application::runtime::builder::Builder;
 use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::application::runtime::critic::Critic;
-use crate::application::runtime::runtime_use_case_authority::{
-    select_runtime_use_case_authority, RuntimeTerminalRule,
-};
+use crate::application::runtime::runtime_use_case_authority::select_runtime_use_case_authority;
 use crate::application::runtime::runtime_policy::{
     BuilderOutcomePolicy, CriticSignalPolicy, PostCriticDecisionPolicy, PreBuildPolicy,
     RetryDirective, RetryPolicy,
 };
 use crate::domain::*;
-
-const INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED: &str =
-    "exhausted retry budget while confirming increment contract tests";
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SessionSummary {
@@ -107,28 +102,15 @@ impl SessionRunner {
         let post_critic_decision =
             PostCriticDecisionPolicy::admit_or_stop(final_decision, &mut self.session)?;
 
+        let terminal_rule = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
+            .and_then(|authority| authority.terminal_rule);
+
         let retry_result = RetryPolicy::authorize_or_stop(
             post_critic_decision,
             &mut self.retry_budget_remaining,
             &mut self.session,
+            terminal_rule,
         );
-
-        if post_critic_signal
-            == crate::application::runtime::post_critic_signal::PostCriticSignal::RevisionRequired
-        {
-            if let Some(authority) =
-                select_runtime_use_case_authority(&scholar_output.selected_task_scope)
-            {
-                if authority.terminal_rule
-                    == Some(RuntimeTerminalRule::IncrementContractConfirmationRetryExhausted)
-                {
-                    return retry_result.map_err(|mut report| {
-                        report.error = Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED);
-                        report
-                    });
-                }
-            }
-        }
 
         retry_result
     }

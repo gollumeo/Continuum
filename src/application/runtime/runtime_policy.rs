@@ -3,6 +3,7 @@ use crate::application::runtime::critic_signal::CriticSignal;
 use crate::application::runtime::post_critic_signal::PostCriticSignal;
 use crate::application::runtime::session_flow_decision::SessionFlowDecision;
 use crate::application::runtime::session_runner::FailureReport;
+use crate::application::runtime::runtime_use_case_authority::RuntimeTerminalRule;
 use crate::domain::Session;
 
 pub struct BuilderOutcomePolicy;
@@ -13,6 +14,8 @@ pub struct RetryPolicy;
 
 const UNDERSPECIFIED_DOCUMENT_PROMPT_REFUSAL: &str =
     "refused to act on an underspecified document prompt; add an explicit allowed file scope";
+const INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED: &str =
+    "exhausted retry budget while confirming increment contract tests";
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PostCriticDecision {
@@ -36,6 +39,21 @@ fn stop_session_with_error(session: &mut Session, error: Option<&'static str>) -
     FailureReport {
         final_session_status: *session.status(),
         error,
+    }
+}
+
+fn stop_session_with_terminal_rule(
+    session: &mut Session,
+    terminal_rule: Option<RuntimeTerminalRule>,
+) -> FailureReport {
+    match terminal_rule {
+        Some(RuntimeTerminalRule::IncrementContractConfirmationRetryExhausted) => {
+            stop_session_with_error(
+                session,
+                Some(INCREMENT_CONTRACT_CONFIRMATION_RETRY_EXHAUSTED),
+            )
+        }
+        None => stop_session(session),
     }
 }
 
@@ -99,10 +117,13 @@ impl RetryPolicy {
         decision: PostCriticDecision,
         retry_budget_remaining: &mut u8,
         session: &mut Session,
+        terminal_rule: Option<RuntimeTerminalRule>,
     ) -> Result<RetryDirective, FailureReport> {
         match decision {
             PostCriticDecision::Complete => Ok(RetryDirective::Complete),
-            PostCriticDecision::Retry if *retry_budget_remaining == 0 => Err(stop_session(session)),
+            PostCriticDecision::Retry if *retry_budget_remaining == 0 => {
+                Err(stop_session_with_terminal_rule(session, terminal_rule))
+            }
             PostCriticDecision::Retry => {
                 *retry_budget_remaining -= 1;
                 Ok(RetryDirective::Retry)
