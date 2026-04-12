@@ -4,19 +4,16 @@
 
 ## Overview
 
-At this stage, Continuum is essentially a controlled wrapper around `codex exec` for a single-file use case (`README.md`).
+Continuum is currently a bounded local runtime around `codex exec` with a small set of repository-proven use cases.
 
-The only capability that has actually been proven is README generation via the Builder connected to Codex, with a strictly limited write scope.
+The repo no longer proves only a single `README.md` generation path. It now proves a few exact, tightly-scoped runtime paths:
 
-The current binary runs locally via `continuum "<prompt>"`, resolves the current repo via `current_dir()`, launches a single run via `SessionRunner`, then terminates in success or failure.
+- one-file `README.md` generation with explicit scope
+- two-file documentation synchronization between `README.md` and `project-directives/index.md`
+- an exact increment-contract repair use case limited to `src/lib.rs`
+- an exact increment-contract repair use case limited to `src/lib.rs` with an additional zero-confirmation check
 
-In the current state of the repo, most of the actual work is delegated to Codex, and is not performed by Continuum itself.
-
-The Scholar, Planner, and Critic roles exist in the code but do not yet correspond to actually operational agents.
-
-The system must not be interpreted as a functional agentic orchestrator.
-
-The repo contains more architectural structure than actually proven capabilities.
+The system is still not a general agentic orchestrator. Most real work is still delegated to `codex exec`, and the admitted task surface remains narrow and explicit.
 
 ## Current Capabilities
 
@@ -24,115 +21,118 @@ What is proven today, and nothing more:
 
 - `cargo build` works.
 - The `continuum` binary runs locally.
-- The CLI accepts a single non-empty prompt.
-- The current repo is resolved via `current_dir()`.
-- `SessionRunner` orchestrates the current run.
+- The CLI accepts exactly one non-empty prompt argument.
+- The current repository root is resolved via `current_dir()`.
+- `main` builds a local shell runtime and runs a single `SessionRunner` session.
+- `SessionRunner` executes a bounded `Scholar -> Planner -> Builder -> Critic -> Planner` flow.
+- The runtime can complete in one pass or stop terminally on failure.
+- The runtime can perform one bounded retry for the currently admitted retrying use cases.
 - The `Builder` is connected to `codex exec`.
-- The prompt passed to Codex is bounded by Continuum.
-- The write scope is explicitly controlled.
-- The currently admitted scope is limited to `README.md`.
-- The system captures `stdout` and `stderr` from the `codex` process.
-- The `Builder` returns a `BuilderRunReport` exploitable by the runtime.
-- If the `Builder` does not return `Completed`, the runtime stops terminally.
-- A real run generated a `README.md`.
-- An out-of-scope mission fails with `precondition_failed`.
+- The `Builder` sends a bounded prompt that includes an explicit allowed file scope.
+- The `Builder` captures `stdout` and `stderr` from `codex` and returns a `BuilderRunReport`.
+- The `Builder` checks the resulting file changes against the allowed scope using git status.
+- The local shell critic runs exact proof commands for the admitted increment-contract use cases.
+- The local shell critic performs a bounded content/existence check for the admitted two-file documentation sync use case.
+- The CLI renders terminal success and failure output including session status and builder report data.
 
-Minimum currently useful command:
+## Exact Proven Use Cases
 
-```bash
-continuum "Generate the README.md for this repository. Modify only README.md."
+The repo currently proves these concrete prompt paths:
+
+```text
+Generate the README.md for this repository. Modify only README.md.
 ```
+
+```text
+Synchronize README.md and project-directives/index.md. Modify only README.md and project-directives/index.md.
+```
+
+```text
+Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.
+```
+
+```text
+Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.
+```
+
+These proved paths include the following exact bounded behavior:
+
+- `README.md` generation is admitted only with explicit file scope.
+- an underspecified `Generate the README.md for this repository.` prompt is refused before builder launch.
+- two-file synchronization is admitted only when both canonical files are allowed together.
+- the single increment-contract fix is bounded to `src/lib.rs` and proved by running `cargo test --test increment_contract increment_adds_one_to_input -- --exact`.
+- the zero-confirmation increment use case is bounded to `src/lib.rs` and proved by running the `increment_adds_one_to_input` command first and then `increment_adds_one_to_zero`.
+- the increment use cases retry exactly once when the critic requests revision and stop after budget exhaustion.
+
+## Runtime Shape
+
+The current runtime is small but real:
+
+- `MissionScholar` currently copies the mission text into `ScholarOutput`.
+- the shell planner admits build execution for the currently proved bounded prompts and refuses the underspecified README prompt.
+- `CodexLocalBuilderAdapter` launches `codex exec` from the repository root with an explicit allowed file scope.
+- `ShellCritic` is local and exact-case-driven: it either runs the proved cargo commands for increment-contract prompts or validates the two-file documentation sync result.
+- runtime stop and retry handling is routed through `runtime_policy`.
+- exact increment runtime-use-case selection is centralized in `runtime_use_case_authority`.
 
 ## Current Limitations
 
-The current limitations are structural, major, and not optional:
+The current limitations remain structural and important:
 
-- `Scholar` is a minimal shell.
-- `Planner` is a minimal shell.
-- `Critic` is a minimal shell.
-- Only the `Builder` is actually connected to a local external engine.
-- This connection only covers a single-file use case centered on `README.md`.
-- The current system is not a real operational multi-agent.
-- The current system must not be read as a general orchestrator of development tasks.
-- There is no proven support for general tasks outside the README path.
+- This is not a general development agent.
+- Prompt admission is narrow and repository-specific.
+- The documentation use cases are still tied to exact bounded prompt shapes and exact file scopes.
+- The increment-contract paths are still tied to exact prompts, exact proof commands, and exact file scope `src/lib.rs`.
+- `Scholar` is still a minimal shell over `MissionScholar`.
+- `Planner` is still a minimal shell with bounded runtime decisions, not a general planning agent.
+- `Critic` is not a general reviewer; it only performs the exact local checks currently proved by tests.
+- Only the `Builder` is connected to a local external engine.
 - There is no persistent Codex session.
-- There is no natural multi-turn prompting.
+- There is no natural multi-turn runtime.
 - There is no parallel orchestration.
 - There are no worktrees.
-- There is no required SQLite dependency for this current real path.
-- The current CLI is a minimal shell, not a final product CLI.
+- The CLI is still a minimal shell, not a final product CLI.
 - The product is not ready for production.
-- The target architecture is far from implemented.
+- The repo still contains more architecture than generally proven capability.
 
 ## What This Is
 
-Continuum is today a very bounded local experimental runtime.
-
-In its current state, Continuum acts mainly as a controller, not as an autonomous intelligent agent.
-
-In its current state, it serves to validate a first real bridge between:
+Continuum is currently a bounded local experimental runtime used to validate a few exact orchestration paths:
 
 - a minimal CLI
-- `SessionRunner` as the runtime orchestrator
-- a `Builder` connected to `codex exec`
+- `SessionRunner` as the runtime coordinator
+- a `Builder` bridged to `codex exec`
+- a small set of explicit planner and critic rules around proven repository use cases
 
-Its current value is experimental and architectural:
+Its current value is practical but narrow:
 
-- prove that a real local run can be executed
-- verify that a strict write scope can be enforced
-- observe the real limits of the system in contact with a local external engine
+- prove that a local builder run can be executed safely under explicit file scope
+- prove that the runtime can stop, retry once, and render terminal artifacts predictably
+- prove a few exact repository tasks end to end without claiming general task execution
 
 ## What This Is NOT
 
 This project is not:
 
-- a functional agentic orchestrator
+- a general agentic orchestrator
 - an operational multi-agent system
-- a complete integration of Codex into Continuum
-- a system proven capable of handling general tasks
+- a general task runner for arbitrary repo work
+- a complete Codex integration
 - a mature product
-- a system ready for production
-- a complete product CLI
-
-If you are looking for a complete agentic runtime, this repo does not provide that yet.
+- a production-ready system
+- a final product CLI
 
 ## Architecture Target
 
-This section describes the architectural target of the project. It does not describe the currently proven real state of the repo.
+The architectural target remains larger than the currently proved runtime.
 
-The target defined in the planning artifacts is a bounded local runtime with a `Scholar -> Planner -> Builder -> Critic` pipeline, orchestrated by `SessionRunner`, with explicit decisions, guardrails, retry budget, terminal artifacts, and prescriptive critique.
+The repo is still organized around a `Scholar -> Planner -> Builder -> Critic` pipeline orchestrated by `SessionRunner`, with explicit flow decisions, retry policy, terminal outcomes, and bounded runtime authority.
 
-This target is not implemented end to end today.
+That target is still only partially realized:
 
-More precisely:
+- the runtime pipeline is real and tested
+- the builder bridge to `codex exec` is real and tested
+- the critic has a few real exact-case checks
+- the scholar and planner layers are still minimal compared to the architectural target
 
-- the full pipeline exists as code structure and as architectural intent
-- the only real bridge to a local external engine concerns the `Builder` today
-- `Scholar`, `Planner`, and `Critic` must not be interpreted as actually operational agents
-
-## First Real Run
-
-The first real run proven at this stage is a README run.
-
-Valid path:
-
-- `cargo build`
-- local execution of the `continuum` binary
-- single prompt bounded to the generation of `README.md`
-- resolution of the current repo via `current_dir()`
-- orchestration of the run by `SessionRunner`
-- invocation of `codex exec` by the `Builder`
-- write scope strictly bounded to `README.md`
-- clear terminal output in success or failure
-
-This run proves a real `Builder -> Codex` bridge.
-
-It does not prove:
-
-- complete multi-agent orchestration
-- a general capability to solve tasks
-- a complete integration of Codex into the system
-
-Example of failure currently expected:
-
-- if the mission does not allow an explicitly bounded scope on `README.md` to be determined, the `Builder` fails with `precondition_failed`
+The repository should therefore be read as a tightly-bounded experimental runtime, not as a fully implemented autonomous system.
