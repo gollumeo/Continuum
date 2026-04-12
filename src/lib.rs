@@ -2,10 +2,10 @@ mod domain;
 mod application;
 
 pub use application::actors::{
-    Builder,
     Planner,
     Scholar,
 };
+pub use application::runtime::builder::Builder;
 pub use application::runtime::builder_run_report::{
     BuilderIssue,
     BuilderRunReport,

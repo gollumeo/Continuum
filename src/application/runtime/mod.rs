@@ -1,3 +1,4 @@
+pub mod builder;
 pub mod builder_run_report;
 pub mod critic;
 pub mod critic_signal;

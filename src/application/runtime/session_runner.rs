@@ -1,4 +1,5 @@
-use crate::application::actors::{Builder, Planner, Scholar};
+use crate::application::actors::{Planner, Scholar};
+use crate::application::runtime::builder::Builder;
 use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::application::runtime::critic::Critic;
 use crate::application::runtime::runtime_use_case_authority::{
