@@ -15,6 +15,7 @@ This file codifies only rules already justified in this repository by the curren
 - Reject any structure, split, abstraction, intermediate type, or preparatory path unless one current failing repository test requires it and that test cannot pass with a smaller local change.
 - Implement only the smallest local change that makes the current red test pass; reject any change that also prepares an unproven second case or follows a test that extends capability beyond the selected use case.
 - When the exact active use case is green, stop; reject any further change not required to keep current repository tests green.
+- When `Cargo.toml` registers integration tests through explicit `[[test]]` entries, adding one exact newly-authorized repository proof may include adding the single matching `[[test]]` entry required to execute that proof; this does not authorize dependency changes or broader test-surface expansion.
 
 ## 3. Driving vs Non-Driving Test Distinction
 
