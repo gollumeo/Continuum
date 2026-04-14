@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::{
-    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner,
-    PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
-    SessionStatus,
+    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner, PostCriticSignal,
+    Scholar, ScholarOutput, SessionFlowDecision, SessionRunner, SessionStatus,
 };
 
 const SCHOLAR: &str = "scholar";
@@ -143,7 +142,10 @@ fn stops_session_when_runtime_revision_is_requested_again_without_retry_budget()
         }),
         Box::new(RepeatedRevisionCritic {
             activations: Rc::clone(&activations),
-            signals: vec![CriticSignal::RevisionRequired, CriticSignal::RevisionRequired],
+            signals: vec![
+                CriticSignal::RevisionRequired,
+                CriticSignal::RevisionRequired,
+            ],
         }),
     );
 
@@ -160,9 +162,7 @@ fn stops_session_when_runtime_revision_is_requested_again_without_retry_budget()
     );
     assert_eq!(
         *activations.borrow(),
-        vec![
-            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,]
     );
     assert_eq!(
         activations

@@ -1,6 +1,4 @@
-use continuum::{
-    Planner, PostCriticPlanner, PostCriticSignal, ScholarOutput, SessionFlowDecision,
-};
+use continuum::{Planner, PostCriticPlanner, PostCriticSignal, ScholarOutput, SessionFlowDecision};
 
 struct CompletingPlanner;
 

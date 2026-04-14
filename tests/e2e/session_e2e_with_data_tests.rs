@@ -41,9 +41,7 @@ impl Planner for DataAwarePlanner {
 
         self.call_count += 1;
 
-        if self.call_count == 1
-            && scholar_output.mission_summary == "propagated mission context"
-        {
+        if self.call_count == 1 && scholar_output.mission_summary == "propagated mission context" {
             SessionFlowDecision::Build
         } else {
             SessionFlowDecision::Complete

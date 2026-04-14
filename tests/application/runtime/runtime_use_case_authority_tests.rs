@@ -37,7 +37,10 @@ fn selects_exact_increment_contract_fix_and_zero_confirmation_use_case_from_cent
     )
     .expect("the exact proved use case should be selected centrally");
 
-    assert_eq!(authority.use_case, RuntimeUseCase::IncrementContractFixAndZeroConfirm);
+    assert_eq!(
+        authority.use_case,
+        RuntimeUseCase::IncrementContractFixAndZeroConfirm
+    );
     assert_eq!(
         authority.builder_allowed_file_scope,
         Some(["src/lib.rs"].as_slice()),
@@ -59,7 +62,9 @@ fn does_not_select_zero_confirmation_use_case_for_single_increment_fix_prompt() 
     );
 
     assert_ne!(
-        authority.expect("the exact zero confirmation use case should be selected").use_case,
+        authority
+            .expect("the exact zero confirmation use case should be selected")
+            .use_case,
         RuntimeUseCase::IncrementContractFix,
     );
 }

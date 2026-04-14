@@ -1,9 +1,9 @@
 use crate::application::runtime::builder_run_report::BuilderRunReport;
 use crate::application::runtime::critic_signal::CriticSignal;
 use crate::application::runtime::post_critic_signal::PostCriticSignal;
+use crate::application::runtime::runtime_use_case_authority::RuntimeTerminalRule;
 use crate::application::runtime::session_flow_decision::SessionFlowDecision;
 use crate::application::runtime::session_runner::FailureReport;
-use crate::application::runtime::runtime_use_case_authority::RuntimeTerminalRule;
 use crate::domain::Session;
 
 pub struct BuilderOutcomePolicy;
@@ -80,7 +80,9 @@ impl PreBuildPolicy {
             SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt => Err(
                 stop_session_with_error(session, Some(UNDERSPECIFIED_DOCUMENT_PROMPT_REFUSAL)),
             ),
-            SessionFlowDecision::Retry | SessionFlowDecision::Complete => Err(stop_session(session)),
+            SessionFlowDecision::Retry | SessionFlowDecision::Complete => {
+                Err(stop_session(session))
+            }
         }
     }
 }

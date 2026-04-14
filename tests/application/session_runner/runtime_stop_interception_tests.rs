@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use continuum::{
-    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner,
-    PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision, SessionRunner,
-    SessionStatus,
+    Builder, BuilderRunReport, Critic, CriticSignal, FailureReport, Planner, PostCriticSignal,
+    Scholar, ScholarOutput, SessionFlowDecision, SessionRunner, SessionStatus,
 };
 
 const SCHOLAR: &str = "scholar";

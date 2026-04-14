@@ -115,7 +115,8 @@ impl ShellCritic {
 
 impl Critic for ShellCritic {
     fn run(&mut self, scholar_output: &ScholarOutput) -> CriticSignal {
-        if let Some(authority) = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
+        if let Some(authority) =
+            select_runtime_use_case_authority(&scholar_output.selected_task_scope)
         {
             match authority.critic_proof_rule {
                 Some(CriticProofRule::IncrementContractFix) => {

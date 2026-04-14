@@ -31,7 +31,9 @@ fn marks_session_stopped_as_terminal() {
 fn rejects_second_terminal_transition() {
     let mut session = Session::new();
 
-    session.mark_completed().expect("first terminal transition should succeed");
+    session
+        .mark_completed()
+        .expect("first terminal transition should succeed");
 
     let result = session.mark_stopped();
 

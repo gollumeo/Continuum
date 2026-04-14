@@ -1,6 +1,6 @@
 use continuum::{
-    select_runtime_use_case_authority, Builder, BuilderIssue, BuilderRunReport,
-    BuilderScopeStatus, ScholarOutput,
+    select_runtime_use_case_authority, Builder, BuilderIssue, BuilderRunReport, BuilderScopeStatus,
+    ScholarOutput,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -16,7 +16,8 @@ impl CodexLocalBuilderAdapter {
     }
 
     fn allowed_file_scope(&self, scholar_output: &ScholarOutput) -> Option<Vec<String>> {
-        if let Some(authority) = select_runtime_use_case_authority(&scholar_output.selected_task_scope)
+        if let Some(authority) =
+            select_runtime_use_case_authority(&scholar_output.selected_task_scope)
         {
             if let Some(builder_allowed_file_scope) = authority.builder_allowed_file_scope {
                 return Some(
@@ -36,7 +37,9 @@ impl CodexLocalBuilderAdapter {
                 "README.md".to_string(),
                 "project-directives/index.md".to_string(),
             ])
-        } else if scholar_output.selected_task_scope.contains("Modify only README.md.")
+        } else if scholar_output
+            .selected_task_scope
+            .contains("Modify only README.md.")
             && !scholar_output
                 .selected_task_scope
                 .contains("project-directives/index.md")
@@ -74,7 +77,9 @@ impl CodexLocalBuilderAdapter {
             ));
         }
 
-        Ok(parse_git_status_paths(&String::from_utf8_lossy(&output.stdout)))
+        Ok(parse_git_status_paths(&String::from_utf8_lossy(
+            &output.stdout,
+        )))
     }
 
     fn scope_status(
@@ -84,7 +89,9 @@ impl CodexLocalBuilderAdapter {
         allowed_file_scope: &[String],
     ) -> (BuilderScopeStatus, Vec<String>) {
         let changed_files: Vec<String> = after.difference(before).cloned().collect();
-        let within_scope = changed_files.iter().all(|file| allowed_file_scope.contains(file));
+        let within_scope = changed_files
+            .iter()
+            .all(|file| allowed_file_scope.contains(file));
 
         if within_scope {
             (BuilderScopeStatus::WithinScope, changed_files)
@@ -205,7 +212,10 @@ mod tests {
             "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs, and confirm 'increment_adds_one_to_zero' in tests/increment_contract.rs also passes.",
         );
 
-        assert_eq!(builder.allowed_file_scope(&scholar_output), Some(vec!["src/lib.rs".to_string()]));
+        assert_eq!(
+            builder.allowed_file_scope(&scholar_output),
+            Some(vec!["src/lib.rs".to_string()])
+        );
     }
 
     #[test]
@@ -227,7 +237,10 @@ mod tests {
             "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
         );
 
-        assert_eq!(builder.allowed_file_scope(&scholar_output), Some(vec!["src/lib.rs".to_string()]));
+        assert_eq!(
+            builder.allowed_file_scope(&scholar_output),
+            Some(vec!["src/lib.rs".to_string()])
+        );
     }
 
     #[test]

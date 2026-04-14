@@ -11,10 +11,7 @@ fn critic_signal_explicitly_models_minimal_runtime_review_outcomes() {
     assert!(matches!(stop, CriticSignal::Stop));
 }
 
-fn critic_run_signal(
-    critic: &mut dyn Critic,
-    scholar_output: &ScholarOutput,
-) -> CriticSignal {
+fn critic_run_signal(critic: &mut dyn Critic, scholar_output: &ScholarOutput) -> CriticSignal {
     critic.run(scholar_output)
 }
 

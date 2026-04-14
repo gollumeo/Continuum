@@ -176,9 +176,7 @@ fn completes_session_after_one_runtime_revision_then_explicit_complete() {
     );
     assert_eq!(
         *activations.borrow(),
-        vec![
-            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,]
     );
     assert_eq!(
         activations

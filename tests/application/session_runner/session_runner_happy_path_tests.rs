@@ -127,7 +127,9 @@ fn runs_agents_in_strict_order_for_happy_path() {
     let activations = Rc::new(RefCell::new(Vec::new()));
     let mut runner = happy_path_runner(Rc::clone(&activations));
 
-    runner.run().expect("happy path should complete without runner error");
+    runner
+        .run()
+        .expect("happy path should complete without runner error");
 
     assert_eq!(
         *activations.borrow(),
@@ -140,7 +142,9 @@ fn completes_session_after_accepted_signal_then_complete_decision() {
     let activations = Rc::new(RefCell::new(Vec::new()));
     let mut runner = happy_path_runner(Rc::clone(&activations));
 
-    runner.run().expect("happy path should complete the session");
+    runner
+        .run()
+        .expect("happy path should complete the session");
 
     assert_eq!(
         *activations.borrow(),

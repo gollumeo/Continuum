@@ -1,8 +1,8 @@
-pub mod task_contract;
-pub mod verdict;
-pub mod session;
 pub mod raw_mission;
 pub mod scholar_output;
+pub mod session;
+pub mod task_contract;
+pub mod verdict;
 
 pub use raw_mission::RawMission;
 pub use scholar_output::ScholarOutput;

@@ -44,7 +44,10 @@ fn render_builder_report_stdout(report: &BuilderRunReport) {
         "builder_scope_status={}",
         render_builder_scope_status(&report.scope_status)
     );
-    println!("builder_allowed_file_scope={}", report.allowed_file_scope.join(","));
+    println!(
+        "builder_allowed_file_scope={}",
+        report.allowed_file_scope.join(",")
+    );
     println!("builder_changed_files={}", report.changed_files.join(","));
     println!("builder_stdout={}", render_terminal_field(&report.stdout));
     println!("builder_stderr={}", render_terminal_field(&report.stderr));
@@ -56,7 +59,10 @@ fn render_builder_report_stderr(report: &BuilderRunReport) {
         "builder_scope_status={}",
         render_builder_scope_status(&report.scope_status)
     );
-    eprintln!("builder_allowed_file_scope={}", report.allowed_file_scope.join(","));
+    eprintln!(
+        "builder_allowed_file_scope={}",
+        report.allowed_file_scope.join(",")
+    );
     eprintln!("builder_changed_files={}", report.changed_files.join(","));
     eprintln!("builder_stdout={}", render_terminal_field(&report.stdout));
     eprintln!("builder_stderr={}", render_terminal_field(&report.stderr));

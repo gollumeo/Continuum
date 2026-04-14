@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use continuum::{
     Builder, BuilderIssue, BuilderRunReport, BuilderScopeStatus, Critic, CriticSignal,
-    FailureReport, Planner, PostCriticSignal, Scholar, ScholarOutput,
-    SessionFlowDecision, SessionRunner, SessionStatus,
+    FailureReport, Planner, PostCriticSignal, Scholar, ScholarOutput, SessionFlowDecision,
+    SessionRunner, SessionStatus,
 };
 
 const SCHOLAR: &str = "scholar";
@@ -179,10 +179,7 @@ fn stops_when_initial_planner_decision_is_not_admitted_pre_build() {
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
-    assert_eq!(
-        *activations.borrow(),
-        vec![SCHOLAR, PLANNER]
-    );
+    assert_eq!(*activations.borrow(), vec![SCHOLAR, PLANNER]);
 }
 
 #[test]
@@ -215,10 +212,7 @@ fn stops_when_initial_retry_decision_is_not_admitted_pre_build() {
         })
     );
     assert_eq!(runner.session_status(), &SessionStatus::Stopped);
-    assert_eq!(
-        *activations.borrow(),
-        vec![SCHOLAR, PLANNER]
-    );
+    assert_eq!(*activations.borrow(), vec![SCHOLAR, PLANNER]);
 }
 
 #[test]
@@ -546,7 +540,10 @@ fn stops_after_consuming_last_retry_budget_when_revision_is_requested_again() {
         }),
         Box::new(RepeatedRevisionCritic {
             activations: Rc::clone(&activations),
-            signals: vec![CriticSignal::RevisionRequired, CriticSignal::RevisionRequired],
+            signals: vec![
+                CriticSignal::RevisionRequired,
+                CriticSignal::RevisionRequired,
+            ],
         }),
     );
 
@@ -562,9 +559,7 @@ fn stops_after_consuming_last_retry_budget_when_revision_is_requested_again() {
     );
     assert_eq!(
         recorded_activations,
-        vec![
-            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,
-        ]
+        vec![SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER,]
     );
     assert_eq!(
         recorded_activations
@@ -613,8 +608,8 @@ fn stops_after_third_revision_request_when_retry_budget_of_two_is_fully_consumed
     assert_eq!(
         recorded_activations,
         vec![
-            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER,
-            CRITIC, PLANNER,
+            SCHOLAR, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC, PLANNER, BUILDER, CRITIC,
+            PLANNER,
         ]
     );
     assert_eq!(
