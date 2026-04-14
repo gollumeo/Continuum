@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 path = "src/lib.rs"
 
+[dependencies]
+crossterm = "0.28.1"
+
 [[test]]
 name = "task_contract_tests"
 path = "tests/domain/task_contract_tests.rs"
@@ -69,3 +72,7 @@ path = "tests/e2e/session_e2e_with_data_tests.rs"
 [[test]]
 name = "cli_minimal_runtime_shell_tests"
 path = "tests/infrastructure/cli/cli_minimal_runtime_shell_tests.rs"
+
+[[test]]
+name = "cli_tui_bootstrap_shell_tests"
+path = "tests/infrastructure/cli/cli_tui_bootstrap_shell_tests.rs"

@@ -233,9 +233,8 @@ fn runs_single_session_from_terminal_prompt_on_current_repo() {
 fn runs_increment_contract_fix_and_zero_confirmation_from_repo_root_with_a_then_b_success() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
-    let repo_root = init_increment_contract_repo_with_zero_confirmation(
-        "increment-contract-a-then-b-success",
-    );
+    let repo_root =
+        init_increment_contract_repo_with_zero_confirmation("increment-contract-a-then-b-success");
     let temp_dir = unique_temp_dir("increment-contract-a-then-b-success-logs");
     let bin_dir = temp_dir.join("bin");
     let codex_args = temp_dir.join("codex-args.log");
@@ -353,7 +352,12 @@ fn retries_increment_contract_fix_and_zero_confirmation_when_a_fails_before_b_ru
     );
     assert_eq!(
         cargo_pwd,
-        format!("{}\n{}\n{}\n", repo_root.display(), repo_root.display(), repo_root.display())
+        format!(
+            "{}\n{}\n{}\n",
+            repo_root.display(),
+            repo_root.display(),
+            repo_root.display()
+        )
     );
 }
 
@@ -409,7 +413,13 @@ fn retries_increment_contract_fix_and_zero_confirmation_when_b_fails_after_a_suc
     );
     assert_eq!(
         cargo_pwd,
-        format!("{}\n{}\n{}\n{}\n", repo_root.display(), repo_root.display(), repo_root.display(), repo_root.display())
+        format!(
+            "{}\n{}\n{}\n{}\n",
+            repo_root.display(),
+            repo_root.display(),
+            repo_root.display(),
+            repo_root.display()
+        )
     );
 }
 
@@ -417,9 +427,8 @@ fn retries_increment_contract_fix_and_zero_confirmation_when_b_fails_after_a_suc
 fn stops_increment_contract_fix_and_zero_confirmation_after_second_b_failure() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
-    let repo_root = init_increment_contract_repo_with_zero_confirmation(
-        "increment-contract-b-fails-twice",
-    );
+    let repo_root =
+        init_increment_contract_repo_with_zero_confirmation("increment-contract-b-fails-twice");
     let temp_dir = unique_temp_dir("increment-contract-b-fails-twice-logs");
     let bin_dir = temp_dir.join("bin");
     let cargo_args = temp_dir.join("cargo-args.log");
@@ -462,7 +471,9 @@ fn stops_increment_contract_fix_and_zero_confirmation_after_second_b_failure() {
     assert!(stderr.contains("terminal_outcome=failure"));
     assert!(stderr.contains("session_status=stopped"));
     assert!(stderr.contains("builder_allowed_file_scope=src/lib.rs"));
-    assert!(stderr.contains("error=exhausted retry budget while confirming increment contract tests"));
+    assert!(
+        stderr.contains("error=exhausted retry budget while confirming increment contract tests")
+    );
     assert_eq!(cargo_call_count, "4");
     assert_eq!(
         cargo_args,
@@ -470,7 +481,13 @@ fn stops_increment_contract_fix_and_zero_confirmation_after_second_b_failure() {
     );
     assert_eq!(
         cargo_pwd,
-        format!("{}\n{}\n{}\n{}\n", repo_root.display(), repo_root.display(), repo_root.display(), repo_root.display())
+        format!(
+            "{}\n{}\n{}\n{}\n",
+            repo_root.display(),
+            repo_root.display(),
+            repo_root.display(),
+            repo_root.display()
+        )
     );
     assert_ne!(status_after, status_before);
     assert!(status_after.contains(" M src/lib.rs"));
@@ -494,10 +511,7 @@ fn runs_increment_contract_fix_builder_from_repo_root_with_src_lib_rs_scope_only
         &bin_dir,
         "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CODEX_ARGS_LOG\"\npwd > \"$CODEX_PWD_LOG\"\nprintf 'pub fn increment(input: i32) -> i32 {\\n    input + 1\\n}\\n' > src/lib.rs\nexit 0\n",
     );
-    install_fake_cargo_script(
-        &bin_dir,
-        "#!/bin/sh\nexit 0\n",
-    );
+    install_fake_cargo_script(&bin_dir, "#!/bin/sh\nexit 0\n");
 
     let output = Command::new(binary_path)
         .current_dir(&repo_root)
@@ -691,8 +705,7 @@ fn fails_with_explicit_terminal_refusal_for_underspecified_readme_prompt() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
     let repo_root = init_temp_git_repo("underspecified-readme-refusal-repo");
-    fs::write(repo_root.join("README.md"), "# Continuum\n")
-        .expect("README.md should be written");
+    fs::write(repo_root.join("README.md"), "# Continuum\n").expect("README.md should be written");
     let temp_dir = unique_temp_dir("underspecified-readme-refusal");
     let bin_dir = temp_dir.join("bin");
     let args_log = temp_dir.join("codex-args.log");
@@ -731,8 +744,7 @@ fn leaves_repository_unchanged_when_underspecified_readme_prompt_is_refused() {
         .expect("continuum binary should be built for this test");
     let repo_root = init_temp_git_repo("underspecified-readme-no-side-effects-repo");
     let readme_path = repo_root.join("README.md");
-    fs::write(&readme_path, "# Continuum\nInitial content\n")
-        .expect("README.md should be written");
+    fs::write(&readme_path, "# Continuum\nInitial content\n").expect("README.md should be written");
     let status_before = git_status_porcelain(&repo_root);
     let readme_before = fs::read_to_string(&readme_path).expect("README.md should be readable");
     let temp_dir = unique_temp_dir("underspecified-readme-no-side-effects");
@@ -814,9 +826,7 @@ fn runs_two_file_document_sync_scope_on_repo_with_both_canonical_files() {
     assert!(stdout.contains("session_status=completed"));
     assert!(stdout.contains("builder_issue=completed"));
     assert!(stdout.contains("builder_scope_status=within_scope"));
-    assert!(stdout.contains(
-        "builder_allowed_file_scope=README.md,project-directives/index.md"
-    ));
+    assert!(stdout.contains("builder_allowed_file_scope=README.md,project-directives/index.md"));
     assert!(stdout.contains("builder_stdout=builder stdout"));
     assert!(stdout.contains("builder_stderr=builder stderr"));
     assert!(stdout.contains(&repo_root.display().to_string()));
@@ -826,9 +836,7 @@ fn runs_two_file_document_sync_scope_on_repo_with_both_canonical_files() {
     assert!(codex_args.contains("-C"));
     assert!(codex_args.contains(&repo_root.display().to_string()));
     assert!(codex_args.contains("Role: Builder"));
-    assert!(codex_args.contains(
-        "Allowed file scope: README.md, project-directives/index.md"
-    ));
+    assert!(codex_args.contains("Allowed file scope: README.md, project-directives/index.md"));
 }
 
 #[test]
@@ -868,14 +876,10 @@ fn stops_when_two_file_sync_run_leaves_project_directives_index_missing() {
     assert!(stderr.contains("session_status=stopped"));
     assert!(stderr.contains("builder_issue=completed"));
     assert!(stderr.contains("builder_scope_status=within_scope"));
-    assert!(stderr.contains(
-        "builder_allowed_file_scope=README.md,project-directives/index.md"
-    ));
+    assert!(stderr.contains("builder_allowed_file_scope=README.md,project-directives/index.md"));
     assert!(stderr.contains("builder_changed_files=README.md"));
     assert!(codex_pwd.contains(&repo_root.display().to_string()));
-    assert!(codex_args.contains(
-        "Allowed file scope: README.md, project-directives/index.md"
-    ));
+    assert!(codex_args.contains("Allowed file scope: README.md, project-directives/index.md"));
 }
 
 #[test]
@@ -921,27 +925,25 @@ fn completes_two_file_sync_after_one_runtime_retry() {
     assert!(stdout.contains("session_status=completed"));
     assert!(stdout.contains("builder_issue=completed"));
     assert!(stdout.contains("builder_scope_status=within_scope"));
-    assert!(stdout.contains(
-        "builder_allowed_file_scope=README.md,project-directives/index.md"
-    ));
+    assert!(stdout.contains("builder_allowed_file_scope=README.md,project-directives/index.md"));
     assert_eq!(call_count, "2");
     assert!(codex_args.matches("exec").count() >= 2);
-    assert!(codex_args.contains(
-        "Allowed file scope: README.md, project-directives/index.md"
-    ));
+    assert!(codex_args.contains("Allowed file scope: README.md, project-directives/index.md"));
     assert!(codex_pwd.matches(&repo_root.display().to_string()).count() >= 2);
     assert!(readme.contains("project-directives/index.md"));
     assert!(directives_index.contains("README.md"));
 }
 
 #[test]
-fn fails_when_prompt_argument_is_missing() {
+fn fails_when_more_than_one_prompt_argument_is_supplied() {
     let binary_path =
         std::env::var("CARGO_BIN_EXE_continuum").expect("continuum binary should be built");
     let repo_root = env!("CARGO_MANIFEST_DIR");
 
     let output = Command::new(binary_path)
         .current_dir(repo_root)
+        .arg("first prompt")
+        .arg("second prompt")
         .output()
         .expect("binary should launch");
 

@@ -1,13 +1,15 @@
 mod infrastructure;
 
-use infrastructure::cli::entrypoint_cli::read_cli_runtime_request;
+use infrastructure::cli::bootstrap_tui_shell::run_bootstrap_tui_shell;
+use infrastructure::cli::entrypoint_cli::{read_cli_entrypoint, CliEntrypoint};
 use infrastructure::cli::terminal_rendering::{render_failure, render_success};
 use infrastructure::runtime::local_shell_runtime::build_local_shell_session_runner;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let request = match read_cli_runtime_request() {
-        Ok(request) => request,
+    let request = match read_cli_entrypoint() {
+        Ok(CliEntrypoint::BootstrapTuiShell) => return run_bootstrap_tui_shell(),
+        Ok(CliEntrypoint::RuntimeRequest(request)) => request,
         Err(error) => return render_failure(None, None, None, Some(&error)),
     };
 
