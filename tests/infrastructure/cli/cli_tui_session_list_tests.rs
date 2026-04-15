@@ -418,3 +418,34 @@ fn shows_completed_session_row_after_successful_mission_execution() {
     assert!(status.success());
     assert!(final_transcript.contains("[+]"));
 }
+
+#[test]
+fn shows_stopped_session_row_after_mission_refusal() {
+    let repo_root = init_temp_git_repo("tui-session-list-stopped-repo");
+    let temp_dir = unique_temp_dir("tui-session-list-stopped-logs");
+    let bin_dir = temp_dir.join("bin");
+    let args_log = temp_dir.join("codex-args.log");
+
+    fs::create_dir_all(&bin_dir).expect("fake codex bin dir should be created");
+    fs::write(repo_root.join("README.md"), "# Continuum\n").expect("README.md should be written");
+    install_fake_codex(&bin_dir);
+
+    let (status, transcript) = capture_tui_transcript(
+        "tui-session-list-stopped",
+        &repo_root,
+        vec![
+            (
+                Duration::from_millis(200),
+                b"Generate the README.md for this repository.".to_vec(),
+            ),
+            (Duration::from_millis(200), b"\r".to_vec()),
+            (Duration::from_millis(500), vec![0x1b]),
+        ],
+        &bin_dir,
+        &args_log,
+        "0",
+    );
+
+    assert!(status.success());
+    assert!(transcript.contains("[!]"));
+}

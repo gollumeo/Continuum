@@ -392,7 +392,7 @@ fn shows_pre_build_refusal_feedback_for_underspecified_mission_without_builder_s
     assert!(transcript.contains("State: Submitting mission"));
     assert!(transcript.contains("State: Mission refused"));
     assert!(transcript.contains("Refusal: add an explicit allowed file scope."));
-    assert!(transcript.contains("[~]"));
+    assert!(transcript.contains("[!]"));
     assert!(!transcript.contains("Session: initializing."));
     assert!(!args_log.exists());
 }

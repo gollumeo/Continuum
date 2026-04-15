@@ -151,11 +151,11 @@ impl BootstrapTuiShell {
             },
         )?;
 
-        if outcome.entered_admitted_path {
-            if outcome.result.is_ok() {
-                self.sessions[idx].status = TuiSessionStatus::Completed;
-            }
-        }
+        self.sessions[idx].status = if outcome.entered_admitted_path && outcome.result.is_ok() {
+            TuiSessionStatus::Completed
+        } else {
+            TuiSessionStatus::Stopped
+        };
 
         self.view = if outcome.entered_admitted_path {
             BootstrapView::mission_admitted()
