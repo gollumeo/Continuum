@@ -1,15 +1,12 @@
 use crate::infrastructure::execution::codex_local_builder::CodexLocalBuilderAdapter;
 use continuum::{
-    select_runtime_use_case_authority, Builder, BuilderIssue, BuilderRunReport, BuilderScopeStatus,
-    Critic, CriticProofRule, CriticSignal, FailureReport, MissionScholar, Planner,
-    PostCriticPlanner, PostCriticSignal, RawMission, RuntimeUseCase, Scholar, ScholarOutput,
-    SessionFlowDecision, SessionRunner, SessionSummary,
+    select_runtime_use_case_authority, Critic, CriticProofRule, CriticSignal, MissionScholar,
+    Planner, PostCriticPlanner, PostCriticSignal, RawMission, RuntimeUseCase, Scholar,
+    ScholarOutput, SessionFlowDecision, SessionRunner,
 };
-use std::cell::{Cell, RefCell};
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::rc::Rc;
+use std::process::Command;
 
 fn is_increment_contract_fix_use_case(prompt: &str) -> bool {
     select_runtime_use_case_authority(prompt)
@@ -23,22 +20,21 @@ fn is_increment_contract_fix_and_zero_confirm_prompt(prompt: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn uses_retry_budget(prompt: &str) -> bool {
-    is_increment_contract_fix_use_case(prompt)
-        || is_increment_contract_fix_and_zero_confirm_prompt(prompt)
-        || prompt.contains("Modify only README.md and project-directives/index.md.")
-}
-
-pub struct LocalShellSessionRunOutcome {
-    pub entered_admitted_path: bool,
-    pub result: Result<SessionSummary, FailureReport>,
-}
-
 pub fn build_local_shell_session_runner(
     mission: RawMission,
     repository_root: PathBuf,
 ) -> SessionRunner {
-    if uses_retry_budget(&mission.content) {
+    let is_increment_contract_fix = is_increment_contract_fix_use_case(&mission.content);
+    let is_increment_contract_fix_and_zero_confirm =
+        is_increment_contract_fix_and_zero_confirm_prompt(&mission.content);
+    let is_two_file_document_sync = mission
+        .content
+        .contains("Modify only README.md and project-directives/index.md.");
+
+    if is_increment_contract_fix
+        || is_increment_contract_fix_and_zero_confirm
+        || is_two_file_document_sync
+    {
         SessionRunner::new_with_retry_budget(
             1,
             Box::new(ShellScholar::new(mission)),
@@ -54,52 +50,6 @@ pub fn build_local_shell_session_runner(
             Box::new(ShellCritic::new(repository_root)),
         )
     }
-}
-
-pub fn run_local_shell_session_with_admission_hook<F>(
-    mission: RawMission,
-    repository_root: PathBuf,
-    on_admitted: F,
-) -> Result<LocalShellSessionRunOutcome, String>
-where
-    F: FnMut() -> Result<(), String> + 'static,
-{
-    let entered_admitted_path = Rc::new(Cell::new(false));
-    let admission_hook_error = Rc::new(RefCell::new(None));
-    let builder = AdmissionObservedBuilder::new(
-        CodexLocalBuilderAdapter::new(repository_root.clone()),
-        entered_admitted_path.clone(),
-        admission_hook_error.clone(),
-        on_admitted,
-    );
-
-    let mut session_runner = if uses_retry_budget(&mission.content) {
-        SessionRunner::new_with_retry_budget(
-            1,
-            Box::new(ShellScholar::new(mission)),
-            Box::new(ShellPlanner::new()),
-            Box::new(builder),
-            Box::new(ShellCritic::for_tui(repository_root)),
-        )
-    } else {
-        SessionRunner::new(
-            Box::new(ShellScholar::new(mission)),
-            Box::new(ShellPlanner::new()),
-            Box::new(builder),
-            Box::new(ShellCritic::for_tui(repository_root)),
-        )
-    };
-
-    let result = session_runner.run();
-
-    if let Some(error) = admission_hook_error.borrow_mut().take() {
-        return Err(error);
-    }
-
-    Ok(LocalShellSessionRunOutcome {
-        entered_admitted_path: entered_admitted_path.get(),
-        result,
-    })
 }
 
 struct ShellScholar {
@@ -119,53 +69,6 @@ impl ShellScholar {
 impl Scholar for ShellScholar {
     fn run(&mut self) -> ScholarOutput {
         self.mission_scholar.transform(&self.mission)
-    }
-}
-
-struct AdmissionObservedBuilder<F> {
-    inner: CodexLocalBuilderAdapter,
-    entered_admitted_path: Rc<Cell<bool>>,
-    admission_hook_error: Rc<RefCell<Option<String>>>,
-    on_admitted: F,
-}
-
-impl<F> AdmissionObservedBuilder<F> {
-    fn new(
-        inner: CodexLocalBuilderAdapter,
-        entered_admitted_path: Rc<Cell<bool>>,
-        admission_hook_error: Rc<RefCell<Option<String>>>,
-        on_admitted: F,
-    ) -> Self {
-        Self {
-            inner,
-            entered_admitted_path,
-            admission_hook_error,
-            on_admitted,
-        }
-    }
-}
-
-impl<F> Builder for AdmissionObservedBuilder<F>
-where
-    F: FnMut() -> Result<(), String>,
-{
-    fn run(&mut self, scholar_output: &ScholarOutput) -> BuilderRunReport {
-        if !self.entered_admitted_path.replace(true) {
-            if let Err(error) = (self.on_admitted)() {
-                *self.admission_hook_error.borrow_mut() = Some(error.clone());
-
-                return BuilderRunReport {
-                    issue: BuilderIssue::PreconditionFailed,
-                    scope_status: BuilderScopeStatus::NotChecked,
-                    allowed_file_scope: Vec::new(),
-                    changed_files: Vec::new(),
-                    stdout: String::new(),
-                    stderr: format!("failed to render admitted mission state: {error}"),
-                };
-            }
-        }
-
-        self.inner.run(scholar_output)
     }
 }
 
@@ -202,37 +105,11 @@ impl Planner for ShellPlanner {
 
 struct ShellCritic {
     repository_root: PathBuf,
-    suppress_proof_command_output: bool,
 }
 
 impl ShellCritic {
     fn new(repository_root: PathBuf) -> Self {
-        Self::with_terminal_ownership(repository_root, false)
-    }
-
-    fn for_tui(repository_root: PathBuf) -> Self {
-        Self::with_terminal_ownership(repository_root, true)
-    }
-
-    fn with_terminal_ownership(
-        repository_root: PathBuf,
-        suppress_proof_command_output: bool,
-    ) -> Self {
-        Self {
-            repository_root,
-            suppress_proof_command_output,
-        }
-    }
-
-    fn proof_command(&self) -> Command {
-        let mut command = Command::new("cargo");
-        command.current_dir(&self.repository_root);
-
-        if self.suppress_proof_command_output {
-            command.stdout(Stdio::null()).stderr(Stdio::null());
-        }
-
-        command
+        Self { repository_root }
     }
 }
 
@@ -243,8 +120,8 @@ impl Critic for ShellCritic {
         {
             match authority.critic_proof_rule {
                 Some(CriticProofRule::IncrementContractFix) => {
-                    let status = match self
-                        .proof_command()
+                    let status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
                         .args([
                             "test",
                             "--test",
@@ -266,8 +143,8 @@ impl Critic for ShellCritic {
                     };
                 }
                 Some(CriticProofRule::IncrementContractFixAndZeroConfirm) => {
-                    let command_a_status = match self
-                        .proof_command()
+                    let command_a_status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
                         .args([
                             "test",
                             "--test",
@@ -286,8 +163,8 @@ impl Critic for ShellCritic {
                         return CriticSignal::RevisionRequired;
                     }
 
-                    let command_b_status = match self
-                        .proof_command()
+                    let command_b_status = match Command::new("cargo")
+                        .current_dir(&self.repository_root)
                         .args([
                             "test",
                             "--test",

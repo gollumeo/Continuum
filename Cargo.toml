@@ -76,7 +76,3 @@ path = "tests/infrastructure/cli/cli_minimal_runtime_shell_tests.rs"
 [[test]]
 name = "cli_tui_bootstrap_shell_tests"
 path = "tests/infrastructure/cli/cli_tui_bootstrap_shell_tests.rs"
-
-[[test]]
-name = "cli_tui_mission_submission_tests"
-path = "tests/infrastructure/cli/cli_tui_mission_submission_tests.rs"
