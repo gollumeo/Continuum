@@ -101,13 +101,23 @@ impl BootstrapTuiShell {
                         }
                         KeyCode::Up => {
                             if let Some(idx) = self.selected_idx {
-                                self.selected_idx = Some(idx.saturating_sub(1));
+                                if let Some((min_visible, max_visible)) =
+                                    visible_session_bounds(self.sessions.len())
+                                {
+                                    let clamped = idx.clamp(min_visible, max_visible);
+                                    self.selected_idx =
+                                        Some(clamped.saturating_sub(1).max(min_visible));
+                                }
                             }
                         }
                         KeyCode::Down => {
                             if let Some(idx) = self.selected_idx {
-                                let max = self.sessions.len().saturating_sub(1);
-                                self.selected_idx = Some((idx + 1).min(max));
+                                if let Some((min_visible, max_visible)) =
+                                    visible_session_bounds(self.sessions.len())
+                                {
+                                    let clamped = idx.clamp(min_visible, max_visible);
+                                    self.selected_idx = Some((clamped + 1).min(max_visible));
+                                }
                             }
                         }
                         KeyCode::Char(character)
@@ -408,4 +418,20 @@ fn bootstrap_terminal_size() -> (u16, u16) {
     }
 
     (80, 24)
+}
+
+fn visible_session_bounds(session_count: usize) -> Option<(usize, usize)> {
+    if session_count == 0 {
+        return None;
+    }
+
+    let (_, rows) = bootstrap_terminal_size();
+    let max_session_rows = (rows as usize).saturating_sub(6);
+
+    if max_session_rows == 0 {
+        return Some((0, session_count - 1));
+    }
+
+    let start = session_count.saturating_sub(max_session_rows);
+    Some((start, session_count - 1))
 }
