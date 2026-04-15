@@ -89,8 +89,8 @@ fn opens_bootstrap_tui_shell_in_application_held_terminal_surface() {
     assert!(transcript.contains("Continuum TUI"));
     assert!(transcript.contains("State: Idle"));
     assert!(transcript.contains("Next: Type a prompt. Esc exits."));
-    assert!(transcript.contains("Supervision"));
-    assert!(transcript.contains("No session running."));
+    assert!(transcript.contains("Sessions"));
+    assert!(transcript.contains("No sessions yet."));
     assert!(transcript.contains("Prompt [focused]"));
     assert!(transcript.contains("> te"));
     assert!(transcript.contains("\u{1b}[?25h"));

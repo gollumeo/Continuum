@@ -142,7 +142,7 @@ impl BootstrapView {
         Self {
             state_line: "State: Idle".to_string(),
             next_line: "Next: Type a prompt. Esc exits.".to_string(),
-            supervision_line: "No session running.".to_string(),
+            supervision_line: "  No sessions yet.".to_string(),
             compact_state_line: "Idle | Esc exits".to_string(),
             compact_supervision_line: "Supervision: none".to_string(),
         }
@@ -234,7 +234,7 @@ impl BootstrapLayout {
                 "Continuum TUI".to_string(),
                 view.state_line.clone(),
                 view.next_line.clone(),
-                "Supervision".to_string(),
+                "Sessions".to_string(),
                 view.supervision_line.clone(),
                 "Prompt [focused]".to_string(),
             ],
