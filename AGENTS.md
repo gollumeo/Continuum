@@ -108,3 +108,19 @@ This file codifies only rules already justified in this repository by the curren
 - Before applying any non-trivial change, the agent must be able to state: which exact rule allows the change, which exact test requires it, and why no smaller change would satisfy the same constraint.
 - If this justification cannot be stated clearly and concretely before the change, the change must not be applied.
 - Post-hoc justification is invalid.
+
+## 15. Atomic Commit Rule
+
+- When commit creation is explicitly requested or otherwise already authorized in the current conversation, each commit must be atomic and contain only one exact selected slice, one exact proof-driven correction, or one exact repository-level mandate change.
+- Reject any commit that batches multiple independently reviewable changes, multiple exact cases, multiple story slices, or mixed code-and-doctrine work unless an accepted repository mandate explicitly authorizes that exact mixed scope.
+- If the current work contains more than one exact change, split it into separate commits aligned to the smallest coherent review unit instead of producing one aggregate commit.
+- Commit size is not the rule; atomicity is. A large commit is acceptable only when every changed line is required for one exact authorized slice and no smaller commit boundary can preserve correctness and proof coherence.
+- This rule governs commit boundaries only. It does not authorize creating commits when commits were not explicitly requested.
+
+## 16. TDD Commit Granularity Rule
+
+- Each red→green cycle for one exact targeted test constitutes one atomic commit boundary.
+- A commit may not be created before the targeted test has been proven red first.
+- A commit may not batch more than one red→green transition unless a single implementation change simultaneously satisfies two tests already proven red.
+- Reject any commit that groups a red proof, an implementation, and a green proof across more than one targeted test.
+- Stop and ask for arbitration if making the next test green would require touching a second test's scope.
