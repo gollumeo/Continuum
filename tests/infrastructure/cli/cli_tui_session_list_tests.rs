@@ -449,3 +449,73 @@ fn shows_stopped_session_row_after_mission_refusal() {
     assert!(status.success());
     assert!(transcript.contains("[!]"));
 }
+
+#[test]
+fn shows_selection_prefix_on_session_row_after_mission_completes() {
+    let repo_root = init_increment_contract_repo("tui-session-list-select-repo");
+    let temp_dir = unique_temp_dir("tui-session-list-select-logs");
+    let bin_dir = temp_dir.join("bin");
+    let codex_args_log = temp_dir.join("codex-args.log");
+    let cargo_args_log = temp_dir.join("cargo-args.log");
+    let cargo_done_log = temp_dir.join("cargo-done.log");
+
+    fs::create_dir_all(&bin_dir).expect("fake codex bin dir should be created");
+    install_fake_codex_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf '%s\n' \"$@\" > \"$CODEX_ARGS_LOG\"\nprintf 'pub fn increment(input: i32) -> i32 {\n    input + 1\n}\n' > src/lib.rs\nexit \"$CODEX_EXIT_CODE\"\n",
+    );
+    install_fake_cargo_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf '%s\n' \"$*\" >> \"$CARGO_ARGS_LOG\"\ntouch \"$CARGO_DONE_LOG\"\nexit 0\n",
+    );
+
+    let mut capture = spawn_tui_capture(
+        "tui-session-list-select",
+        &repo_root,
+        &bin_dir,
+        &codex_args_log,
+        "0",
+        &cargo_args_log,
+        &cargo_done_log,
+    );
+
+    thread::sleep(Duration::from_millis(200));
+    capture
+        .stdin
+        .write_all(b"Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.")
+        .expect("mission prompt should be written");
+    capture.stdin.flush().expect("mission prompt should flush");
+    thread::sleep(Duration::from_millis(200));
+    capture
+        .stdin
+        .write_all(b"\r")
+        .expect("mission submit should be written");
+    capture.stdin.flush().expect("mission submit should flush");
+
+    wait_for_transcript_condition(
+        &capture.transcript_path,
+        Duration::from_secs(10),
+        |transcript| transcript.contains("[+]"),
+    );
+
+    // Send Down arrow — selection stays clamped at idx 0, row remains selected
+    capture
+        .stdin
+        .write_all(&[0x1b, 0x5b, 0x42])
+        .expect("down arrow should be written");
+    capture.stdin.flush().expect("down arrow should flush");
+    thread::sleep(Duration::from_millis(100));
+
+    capture
+        .stdin
+        .write_all(&[0x1b])
+        .expect("escape should be written");
+    capture.stdin.flush().expect("escape should flush");
+
+    let status = capture.child.wait().expect("tui shell should terminate");
+    let final_transcript = read_transcript(&capture.transcript_path);
+    let _ = fs::remove_file(&capture.transcript_path);
+
+    assert!(status.success());
+    assert!(final_transcript.contains("> [+]"));
+}

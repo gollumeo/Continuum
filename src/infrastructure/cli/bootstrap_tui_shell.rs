@@ -53,6 +53,7 @@ struct BootstrapTuiShell {
     stdout: Stdout,
     view: BootstrapView,
     sessions: Vec<SessionRecord>,
+    selected_idx: Option<usize>,
 }
 
 impl BootstrapTuiShell {
@@ -72,6 +73,7 @@ impl BootstrapTuiShell {
             stdout,
             view: BootstrapView::idle(),
             sessions: Vec::new(),
+            selected_idx: None,
         })
     }
 
@@ -96,6 +98,17 @@ impl BootstrapTuiShell {
                             }
 
                             self.submit_prompt(&mut prompt)?;
+                        }
+                        KeyCode::Up => {
+                            if let Some(idx) = self.selected_idx {
+                                self.selected_idx = Some(idx.saturating_sub(1));
+                            }
+                        }
+                        KeyCode::Down => {
+                            if let Some(idx) = self.selected_idx {
+                                let max = self.sessions.len().saturating_sub(1);
+                                self.selected_idx = Some((idx + 1).min(max));
+                            }
                         }
                         KeyCode::Char(character)
                             if !key.modifiers.contains(KeyModifiers::CONTROL) =>
@@ -130,6 +143,7 @@ impl BootstrapTuiShell {
             status: TuiSessionStatus::Active,
         });
         let idx = self.sessions.len() - 1;
+        self.selected_idx = Some(idx);
 
         self.render(prompt)?;
 
@@ -137,6 +151,7 @@ impl BootstrapTuiShell {
             .map_err(|error| format!("failed to resolve current repository root: {error}"))?;
 
         let sessions_snapshot = self.sessions.clone();
+        let selected_snapshot = self.selected_idx;
         let admitted_prompt = prompt.to_string();
 
         let outcome = run_local_shell_session_with_admission_hook(
@@ -147,6 +162,7 @@ impl BootstrapTuiShell {
                     &admitted_prompt,
                     &BootstrapView::mission_admitted(),
                     &sessions_snapshot,
+                    selected_snapshot,
                 )
             },
         )?;
@@ -171,7 +187,7 @@ impl BootstrapTuiShell {
 
     fn render(&mut self, prompt: &str) -> Result<(), String> {
         let _ = &self.stdout;
-        render_bootstrap_frame(prompt, &self.view, &self.sessions)
+        render_bootstrap_frame(prompt, &self.view, &self.sessions, self.selected_idx)
     }
 }
 
@@ -253,7 +269,12 @@ struct BootstrapLayout {
 }
 
 impl BootstrapLayout {
-    fn current(prompt: &str, view: &BootstrapView, sessions: &[SessionRecord]) -> Self {
+    fn current(
+        prompt: &str,
+        view: &BootstrapView,
+        sessions: &[SessionRecord],
+        selected_idx: Option<usize>,
+    ) -> Self {
         let prompt_width = prompt.chars().count() as u16;
         let (columns, rows) = bootstrap_terminal_size();
 
@@ -287,13 +308,19 @@ impl BootstrapLayout {
             lines.push("  No sessions yet.".to_string());
             line_colors.push(None);
         } else {
-            for session in visible {
+            for (i, session) in visible.iter().enumerate() {
+                let absolute_idx = start + i;
+                let prefix = if selected_idx == Some(absolute_idx) {
+                    "> "
+                } else {
+                    "  "
+                };
                 let (label, color) = match session.status {
                     TuiSessionStatus::Active => ("[~]", Color::Yellow),
                     TuiSessionStatus::Completed => ("[+]", Color::Green),
                     TuiSessionStatus::Stopped => ("[!]", Color::Red),
                 };
-                lines.push(format!("  {label} {}", session.prompt_preview));
+                lines.push(format!("{prefix}{label} {}", session.prompt_preview));
                 line_colors.push(Some(color));
             }
         }
@@ -317,8 +344,9 @@ fn render_bootstrap_frame(
     prompt: &str,
     view: &BootstrapView,
     sessions: &[SessionRecord],
+    selected_idx: Option<usize>,
 ) -> Result<(), String> {
-    let layout = BootstrapLayout::current(prompt, view, sessions);
+    let layout = BootstrapLayout::current(prompt, view, sessions, selected_idx);
     let mut stdout = io::stdout();
 
     queue!(stdout, MoveTo(0, 0), Clear(ClearType::All))
