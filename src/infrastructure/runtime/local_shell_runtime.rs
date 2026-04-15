@@ -79,14 +79,14 @@ where
             Box::new(ShellScholar::new(mission)),
             Box::new(ShellPlanner::new()),
             Box::new(builder),
-            Box::new(ShellCritic::new(repository_root)),
+            Box::new(ShellCritic::for_tui(repository_root)),
         )
     } else {
         SessionRunner::new(
             Box::new(ShellScholar::new(mission)),
             Box::new(ShellPlanner::new()),
             Box::new(builder),
-            Box::new(ShellCritic::new(repository_root)),
+            Box::new(ShellCritic::for_tui(repository_root)),
         )
     };
 
@@ -202,17 +202,35 @@ impl Planner for ShellPlanner {
 
 struct ShellCritic {
     repository_root: PathBuf,
+    suppress_proof_command_output: bool,
 }
 
 impl ShellCritic {
     fn new(repository_root: PathBuf) -> Self {
-        Self { repository_root }
+        Self::with_terminal_ownership(repository_root, false)
+    }
+
+    fn for_tui(repository_root: PathBuf) -> Self {
+        Self::with_terminal_ownership(repository_root, true)
+    }
+
+    fn with_terminal_ownership(
+        repository_root: PathBuf,
+        suppress_proof_command_output: bool,
+    ) -> Self {
+        Self {
+            repository_root,
+            suppress_proof_command_output,
+        }
     }
 
     fn proof_command(&self) -> Command {
         let mut command = Command::new("cargo");
         command.current_dir(&self.repository_root);
-        command.stdout(Stdio::null()).stderr(Stdio::null());
+
+        if self.suppress_proof_command_output {
+            command.stdout(Stdio::null()).stderr(Stdio::null());
+        }
 
         command
     }

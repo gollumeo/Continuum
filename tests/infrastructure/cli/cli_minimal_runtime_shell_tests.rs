@@ -593,6 +593,42 @@ fn runs_exact_increment_contract_proof_command_from_repo_root() {
 }
 
 #[test]
+fn preserves_legacy_terminal_output_for_increment_contract_proof_command() {
+    let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
+        .expect("continuum binary should be built for this test");
+    let repo_root = init_increment_contract_repo("increment-contract-proof-terminal-output");
+    let temp_dir = unique_temp_dir("increment-contract-proof-terminal-output-logs");
+    let bin_dir = temp_dir.join("bin");
+
+    fs::create_dir_all(&bin_dir).expect("fake tool bin dir should be created");
+    install_fake_codex_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf 'pub fn increment(input: i32) -> i32 {\\n    input + 1\\n}\\n' > src/lib.rs\nexit 0\n",
+    );
+    install_fake_cargo_script(
+        &bin_dir,
+        "#!/bin/sh\nprintf 'LEGACY PROOF STDOUT\\n'\nprintf 'LEGACY PROOF STDERR\\n' 1>&2\nexit 0\n",
+    );
+
+    let output = Command::new(binary_path)
+        .current_dir(&repo_root)
+        .env("PATH", prefixed_path(&bin_dir))
+        .arg(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+        )
+        .output()
+        .expect("binary should launch");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+
+    assert!(stdout.contains("LEGACY PROOF STDOUT"));
+    assert!(stderr.contains("LEGACY PROOF STDERR"));
+}
+
+#[test]
 fn retries_increment_contract_fix_exactly_once_after_revision_required_then_succeeds() {
     let binary_path = std::env::var("CARGO_BIN_EXE_continuum")
         .expect("continuum binary should be built for this test");
