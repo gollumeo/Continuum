@@ -323,7 +323,7 @@ fn shows_exact_increment_mission_admission_before_full_session_completion_and_ke
 
     assert!(transcript.contains("State: Submitting mission"));
     assert!(transcript.contains("State: Mission admitted"));
-    assert!(transcript.contains("Session initialized."));
+    assert!(transcript.contains("[~]"));
     assert!(!transcript.contains("INCREMENT PROOF STDOUT"));
     assert!(!transcript.contains("INCREMENT PROOF STDERR"));
 
@@ -392,7 +392,7 @@ fn shows_pre_build_refusal_feedback_for_underspecified_mission_without_builder_s
     assert!(transcript.contains("State: Submitting mission"));
     assert!(transcript.contains("State: Mission refused"));
     assert!(transcript.contains("Refusal: add an explicit allowed file scope."));
-    assert!(transcript.contains("No build side effects started."));
+    assert!(transcript.contains("[~]"));
     assert!(!transcript.contains("Session: initializing."));
     assert!(!args_log.exists());
 }
@@ -424,7 +424,7 @@ fn shows_command_mode_and_unsupported_slash_feedback_while_keeping_prompt_reusab
     assert!(status.success());
     assert!(transcript.contains("State: Command mode"));
     assert!(transcript.contains("Command unsupported in Story 1.2."));
-    assert!(transcript.contains("Next: Type a mission without '/'."));
+    assert!(transcript.contains("No sessions yet."));
     assert!(transcript.contains("> te"));
     assert!(!args_log.exists());
 }

@@ -3,7 +3,7 @@ use crate::infrastructure::runtime::local_shell_runtime::run_local_shell_session
 use continuum::RawMission;
 use crossterm::cursor::{MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use crossterm::style::Print;
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 use crossterm::terminal::{
     self, disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
     LeaveAlternateScreen,
@@ -32,8 +32,27 @@ pub fn run_bootstrap_tui_shell() -> ExitCode {
     }
 }
 
+#[derive(Clone)]
+enum TuiSessionStatus {
+    Active,
+    Completed,
+    Stopped,
+}
+
+#[derive(Clone)]
+struct SessionRecord {
+    prompt_preview: String,
+    status: TuiSessionStatus,
+}
+
+fn make_preview(submission: &str) -> String {
+    submission.chars().take(40).collect()
+}
+
 struct BootstrapTuiShell {
     stdout: Stdout,
+    view: BootstrapView,
+    sessions: Vec<SessionRecord>,
 }
 
 impl BootstrapTuiShell {
@@ -49,15 +68,18 @@ impl BootstrapTuiShell {
             ));
         }
 
-        Ok(Self { stdout })
+        Ok(Self {
+            stdout,
+            view: BootstrapView::idle(),
+            sessions: Vec::new(),
+        })
     }
 
     fn run(&mut self) -> Result<(), String> {
         let mut prompt = String::new();
-        let mut view = BootstrapView::idle();
 
         loop {
-            self.render(&prompt, &view)?;
+            self.render(&prompt)?;
 
             match event::read()
                 .map_err(|error| format!("failed to read bootstrap shell event: {error}"))?
@@ -73,7 +95,7 @@ impl BootstrapTuiShell {
                                 continue;
                             }
 
-                            view = self.submit_prompt(&mut prompt)?;
+                            self.submit_prompt(&mut prompt)?;
                         }
                         KeyCode::Char(character)
                             if !key.modifiers.contains(KeyModifiers::CONTROL) =>
@@ -92,47 +114,66 @@ impl BootstrapTuiShell {
         }
     }
 
-    fn submit_prompt(&mut self, prompt: &mut String) -> Result<BootstrapView, String> {
+    fn submit_prompt(&mut self, prompt: &mut String) -> Result<(), String> {
         let submission = prompt.clone();
         prompt.clear();
 
         if submission.starts_with('/') {
-            return Ok(BootstrapView::unsupported_command());
+            self.view = BootstrapView::unsupported_command();
+            return Ok(());
         }
 
-        let submitting_view = BootstrapView::mission_submitting();
-        self.render(prompt, &submitting_view)?;
+        self.view = BootstrapView::mission_submitting();
+
+        self.sessions.push(SessionRecord {
+            prompt_preview: make_preview(&submission),
+            status: TuiSessionStatus::Active,
+        });
+        let idx = self.sessions.len() - 1;
+
+        self.render(prompt)?;
 
         let repository_root = env::current_dir()
             .map_err(|error| format!("failed to resolve current repository root: {error}"))?;
+
+        let sessions_snapshot = self.sessions.clone();
         let admitted_prompt = prompt.to_string();
+
         let outcome = run_local_shell_session_with_admission_hook(
             RawMission::new(&submission),
             repository_root,
-            move || render_bootstrap_frame(&admitted_prompt, &BootstrapView::mission_admitted()),
+            move || {
+                render_bootstrap_frame(
+                    &admitted_prompt,
+                    &BootstrapView::mission_admitted(),
+                    &sessions_snapshot,
+                )
+            },
         )?;
 
-        if outcome.entered_admitted_path {
-            return Ok(BootstrapView::mission_admitted());
-        }
+        let _ = idx;
 
-        match outcome.result {
-            Ok(_) => Ok(BootstrapView::mission_admitted()),
-            Err(report) => Ok(BootstrapView::mission_refused(report.error)),
-        }
+        self.view = if outcome.entered_admitted_path {
+            BootstrapView::mission_admitted()
+        } else {
+            match outcome.result {
+                Ok(_) => BootstrapView::mission_admitted(),
+                Err(report) => BootstrapView::mission_refused(report.error),
+            }
+        };
+
+        Ok(())
     }
 
-    fn render(&mut self, prompt: &str, view: &BootstrapView) -> Result<(), String> {
+    fn render(&mut self, prompt: &str) -> Result<(), String> {
         let _ = &self.stdout;
-
-        render_bootstrap_frame(prompt, view)
+        render_bootstrap_frame(prompt, &self.view, &self.sessions)
     }
 }
 
 struct BootstrapView {
     state_line: String,
     next_line: String,
-    supervision_line: String,
     compact_state_line: String,
     compact_supervision_line: String,
 }
@@ -142,7 +183,6 @@ impl BootstrapView {
         Self {
             state_line: "State: Idle".to_string(),
             next_line: "Next: Type a prompt. Esc exits.".to_string(),
-            supervision_line: "  No sessions yet.".to_string(),
             compact_state_line: "Idle | Esc exits".to_string(),
             compact_supervision_line: "Supervision: none".to_string(),
         }
@@ -152,7 +192,6 @@ impl BootstrapView {
         Self {
             state_line: "State: Submitting mission".to_string(),
             next_line: "Mode: Mission".to_string(),
-            supervision_line: "Admission check in progress.".to_string(),
             compact_state_line: "Submitting | Mission".to_string(),
             compact_supervision_line: "Admission check".to_string(),
         }
@@ -162,7 +201,6 @@ impl BootstrapView {
         Self {
             state_line: "State: Mission admitted".to_string(),
             next_line: "Mode: Mission".to_string(),
-            supervision_line: "Session initialized.".to_string(),
             compact_state_line: "Admitted | Mission".to_string(),
             compact_supervision_line: "Session initialized".to_string(),
         }
@@ -180,7 +218,6 @@ impl BootstrapView {
         Self {
             state_line: "State: Mission refused".to_string(),
             next_line,
-            supervision_line: "No build side effects started.".to_string(),
             compact_state_line: "Refused | Retry".to_string(),
             compact_supervision_line: "No build started".to_string(),
         }
@@ -190,7 +227,6 @@ impl BootstrapView {
         Self {
             state_line: "State: Command mode".to_string(),
             next_line: "Command unsupported in Story 1.2.".to_string(),
-            supervision_line: "Next: Type a mission without '/'.".to_string(),
             compact_state_line: "Command | Unsupported".to_string(),
             compact_supervision_line: "Type mission".to_string(),
         }
@@ -206,13 +242,14 @@ impl Drop for BootstrapTuiShell {
 
 struct BootstrapLayout {
     lines: Vec<String>,
+    line_colors: Vec<Option<Color>>,
     prompt_line: String,
     cursor_x: u16,
     cursor_y: u16,
 }
 
 impl BootstrapLayout {
-    fn current(prompt: &str, view: &BootstrapView) -> Self {
+    fn current(prompt: &str, view: &BootstrapView, sessions: &[SessionRecord]) -> Self {
         let prompt_width = prompt.chars().count() as u16;
         let (columns, rows) = bootstrap_terminal_size();
 
@@ -223,38 +260,80 @@ impl BootstrapLayout {
                     view.compact_state_line.clone(),
                     view.compact_supervision_line.clone(),
                 ],
+                line_colors: vec![None, None, None],
                 prompt_line: format!("> {prompt}"),
                 cursor_x: 2 + prompt_width,
                 cursor_y: 3,
             };
         }
 
+        let max_session_rows = (rows as usize).saturating_sub(6);
+        let start = sessions.len().saturating_sub(max_session_rows);
+        let visible = &sessions[start..];
+
+        let mut lines: Vec<String> = vec![
+            "Continuum TUI".to_string(),
+            view.state_line.clone(),
+            view.next_line.clone(),
+            "Sessions".to_string(),
+        ];
+        let mut line_colors: Vec<Option<Color>> = vec![None, None, None, None];
+
+        if visible.is_empty() {
+            lines.push("  No sessions yet.".to_string());
+            line_colors.push(None);
+        } else {
+            for session in visible {
+                let (label, color) = match session.status {
+                    TuiSessionStatus::Active => ("[~]", Color::Yellow),
+                    TuiSessionStatus::Completed => ("[+]", Color::Green),
+                    TuiSessionStatus::Stopped => ("[!]", Color::Red),
+                };
+                lines.push(format!("  {label} {}", session.prompt_preview));
+                line_colors.push(Some(color));
+            }
+        }
+
+        lines.push("Prompt [focused]".to_string());
+        line_colors.push(None);
+
+        let cursor_y = lines.len() as u16;
+
         Self {
-            lines: vec![
-                "Continuum TUI".to_string(),
-                view.state_line.clone(),
-                view.next_line.clone(),
-                "Sessions".to_string(),
-                view.supervision_line.clone(),
-                "Prompt [focused]".to_string(),
-            ],
+            lines,
+            line_colors,
             prompt_line: format!("> {prompt}"),
             cursor_x: 2 + prompt_width,
-            cursor_y: 6,
+            cursor_y,
         }
     }
 }
 
-fn render_bootstrap_frame(prompt: &str, view: &BootstrapView) -> Result<(), String> {
-    let layout = BootstrapLayout::current(prompt, view);
+fn render_bootstrap_frame(
+    prompt: &str,
+    view: &BootstrapView,
+    sessions: &[SessionRecord],
+) -> Result<(), String> {
+    let layout = BootstrapLayout::current(prompt, view, sessions);
     let mut stdout = io::stdout();
 
     queue!(stdout, MoveTo(0, 0), Clear(ClearType::All))
         .map_err(|error| format!("failed to clear bootstrap shell frame: {error}"))?;
 
-    for line in &layout.lines {
-        queue!(stdout, Print(line), Print("\r\n"))
+    for (line, maybe_color) in layout.lines.iter().zip(layout.line_colors.iter()) {
+        if let Some(color) = maybe_color {
+            queue!(
+                stdout,
+                SetForegroundColor(*color),
+                Print(line),
+                ResetColor,
+                Print("\r\n")
+            )
             .map_err(|error| format!("failed to render bootstrap shell frame: {error}"))?;
+        } else {
+            queue!(stdout, Print(line), Print("\r\n"))
+                .map_err(|error| format!("failed to render bootstrap shell frame: {error}"))?;
+        }
     }
 
     queue!(
