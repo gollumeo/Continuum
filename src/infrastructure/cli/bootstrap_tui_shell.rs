@@ -39,10 +39,96 @@ enum TuiSessionStatus {
     Stopped,
 }
 
+impl TuiSessionStatus {
+    fn badge_and_color(&self) -> (&'static str, Color) {
+        match self {
+            TuiSessionStatus::Active => ("[~]", Color::Yellow),
+            TuiSessionStatus::Completed => ("[+]", Color::Green),
+            TuiSessionStatus::Stopped => ("[!]", Color::Red),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct SessionRecord {
     prompt_preview: String,
     status: TuiSessionStatus,
+}
+
+impl SessionRecord {
+    fn render_line(&self, is_selected: bool) -> (String, Color) {
+        let prefix = if is_selected { "> " } else { "  " };
+        let (badge, color) = self.status.badge_and_color();
+        (format!("{prefix}{badge} {}", self.prompt_preview), color)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SessionWindow {
+    start: usize,
+    end: usize,
+}
+
+impl SessionWindow {
+    fn from_rows(session_count: usize, rows: u16) -> Option<Self> {
+        if session_count == 0 {
+            return None;
+        }
+
+        let max_session_rows = (rows as usize).saturating_sub(6);
+        if max_session_rows == 0 {
+            return Some(Self {
+                start: 0,
+                end: session_count - 1,
+            });
+        }
+
+        Some(Self {
+            start: session_count.saturating_sub(max_session_rows),
+            end: session_count - 1,
+        })
+    }
+
+    fn from_terminal_size(session_count: usize) -> Option<Self> {
+        let (_, rows) = bootstrap_terminal_size();
+        Self::from_rows(session_count, rows)
+    }
+
+    fn visible_slice<'a>(&self, sessions: &'a [SessionRecord]) -> &'a [SessionRecord] {
+        &sessions[self.start..=self.end]
+    }
+
+    fn clamp(&self, idx: usize) -> usize {
+        idx.clamp(self.start, self.end)
+    }
+
+    fn step_up(&self, idx: usize) -> usize {
+        self.clamp(idx).saturating_sub(1).max(self.start)
+    }
+
+    fn step_down(&self, idx: usize) -> usize {
+        self.clamp(idx).saturating_add(1).min(self.end)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SelectionStep {
+    Up,
+    Down,
+}
+
+fn step_visible_selection(
+    selected_idx: Option<usize>,
+    session_count: usize,
+    step: SelectionStep,
+) -> Option<usize> {
+    let current = selected_idx?;
+    let window = SessionWindow::from_terminal_size(session_count)?;
+
+    Some(match step {
+        SelectionStep::Up => window.step_up(current),
+        SelectionStep::Down => window.step_down(current),
+    })
 }
 
 fn make_preview(submission: &str) -> String {
@@ -100,25 +186,18 @@ impl BootstrapTuiShell {
                             self.submit_prompt(&mut prompt)?;
                         }
                         KeyCode::Up => {
-                            if let Some(idx) = self.selected_idx {
-                                if let Some((min_visible, max_visible)) =
-                                    visible_session_bounds(self.sessions.len())
-                                {
-                                    let clamped = idx.clamp(min_visible, max_visible);
-                                    self.selected_idx =
-                                        Some(clamped.saturating_sub(1).max(min_visible));
-                                }
-                            }
+                            self.selected_idx = step_visible_selection(
+                                self.selected_idx,
+                                self.sessions.len(),
+                                SelectionStep::Up,
+                            );
                         }
                         KeyCode::Down => {
-                            if let Some(idx) = self.selected_idx {
-                                if let Some((min_visible, max_visible)) =
-                                    visible_session_bounds(self.sessions.len())
-                                {
-                                    let clamped = idx.clamp(min_visible, max_visible);
-                                    self.selected_idx = Some((clamped + 1).min(max_visible));
-                                }
-                            }
+                            self.selected_idx = step_visible_selection(
+                                self.selected_idx,
+                                self.sessions.len(),
+                                SelectionStep::Down,
+                            );
                         }
                         KeyCode::Char(character)
                             if !key.modifiers.contains(KeyModifiers::CONTROL) =>
@@ -302,9 +381,11 @@ impl BootstrapLayout {
             };
         }
 
-        let max_session_rows = (rows as usize).saturating_sub(6);
-        let start = sessions.len().saturating_sub(max_session_rows);
-        let visible = &sessions[start..];
+        let window = SessionWindow::from_rows(sessions.len(), rows);
+        let visible: &[SessionRecord] = window
+            .as_ref()
+            .map(|window| window.visible_slice(sessions))
+            .unwrap_or(&[]);
 
         let mut lines: Vec<String> = vec![
             "Continuum TUI".to_string(),
@@ -319,18 +400,9 @@ impl BootstrapLayout {
             line_colors.push(None);
         } else {
             for (i, session) in visible.iter().enumerate() {
-                let absolute_idx = start + i;
-                let prefix = if selected_idx == Some(absolute_idx) {
-                    "> "
-                } else {
-                    "  "
-                };
-                let (label, color) = match session.status {
-                    TuiSessionStatus::Active => ("[~]", Color::Yellow),
-                    TuiSessionStatus::Completed => ("[+]", Color::Green),
-                    TuiSessionStatus::Stopped => ("[!]", Color::Red),
-                };
-                lines.push(format!("{prefix}{label} {}", session.prompt_preview));
+                let absolute_idx = window.as_ref().map(|window| window.start + i).unwrap_or(i);
+                let (line, color) = session.render_line(selected_idx == Some(absolute_idx));
+                lines.push(line);
                 line_colors.push(Some(color));
             }
         }
@@ -420,18 +492,35 @@ fn bootstrap_terminal_size() -> (u16, u16) {
     (80, 24)
 }
 
-fn visible_session_bounds(session_count: usize) -> Option<(usize, usize)> {
-    if session_count == 0 {
-        return None;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_window_clamps_and_moves_within_visible_bounds() {
+        let window = SessionWindow::from_rows(5, 9).expect("window should exist");
+
+        assert_eq!(window.start, 2);
+        assert_eq!(window.end, 4);
+        assert_eq!(window.step_up(1), 2);
+        assert_eq!(window.step_up(4), 3);
+        assert_eq!(window.step_down(1), 3);
+        assert_eq!(window.step_down(4), 4);
     }
 
-    let (_, rows) = bootstrap_terminal_size();
-    let max_session_rows = (rows as usize).saturating_sub(6);
+    #[test]
+    fn session_status_and_record_render_as_expected() {
+        let record = SessionRecord {
+            prompt_preview: "prompt".to_string(),
+            status: TuiSessionStatus::Completed,
+        };
 
-    if max_session_rows == 0 {
-        return Some((0, session_count - 1));
+        let (selected_line, selected_color) = record.render_line(true);
+        let (plain_line, plain_color) = record.render_line(false);
+
+        assert_eq!(selected_line, "> [+] prompt");
+        assert_eq!(plain_line, "  [+] prompt");
+        assert_eq!(selected_color, Color::Green);
+        assert_eq!(plain_color, Color::Green);
     }
-
-    let start = session_count.saturating_sub(max_session_rows);
-    Some((start, session_count - 1))
 }
