@@ -202,25 +202,29 @@ impl Planner for ShellPlanner {
 
 struct ShellCritic {
     repository_root: PathBuf,
-    suppress_proof_command_output: bool,
+    proof_runner: Box<dyn IncrementProofRunner>,
 }
 
-impl ShellCritic {
-    fn new(repository_root: PathBuf) -> Self {
-        Self::with_terminal_ownership(repository_root, false)
-    }
+#[derive(Clone, Copy)]
+enum ProofOutputPolicy {
+    ForwardToTerminal,
+    SuppressInTui,
+}
 
-    fn for_tui(repository_root: PathBuf) -> Self {
-        Self::with_terminal_ownership(repository_root, true)
-    }
+trait IncrementProofRunner {
+    fn run_increment_contract_test(&self, test_name: &str) -> Result<bool, ()>;
+}
 
-    fn with_terminal_ownership(
-        repository_root: PathBuf,
-        suppress_proof_command_output: bool,
-    ) -> Self {
+struct CargoIncrementProofRunner {
+    repository_root: PathBuf,
+    output_policy: ProofOutputPolicy,
+}
+
+impl CargoIncrementProofRunner {
+    fn new(repository_root: PathBuf, output_policy: ProofOutputPolicy) -> Self {
         Self {
             repository_root,
-            suppress_proof_command_output,
+            output_policy,
         }
     }
 
@@ -228,11 +232,85 @@ impl ShellCritic {
         let mut command = Command::new("cargo");
         command.current_dir(&self.repository_root);
 
-        if self.suppress_proof_command_output {
+        if matches!(self.output_policy, ProofOutputPolicy::SuppressInTui) {
             command.stdout(Stdio::null()).stderr(Stdio::null());
         }
 
         command
+    }
+}
+
+impl IncrementProofRunner for CargoIncrementProofRunner {
+    fn run_increment_contract_test(&self, test_name: &str) -> Result<bool, ()> {
+        self.proof_command()
+            .args([
+                "test",
+                "--test",
+                "increment_contract",
+                test_name,
+                "--",
+                "--exact",
+            ])
+            .status()
+            .map(|status| status.success())
+            .map_err(|_| ())
+    }
+}
+
+impl ShellCritic {
+    fn new(repository_root: PathBuf) -> Self {
+        Self::with_output_policy(repository_root, ProofOutputPolicy::ForwardToTerminal)
+    }
+
+    fn for_tui(repository_root: PathBuf) -> Self {
+        Self::with_output_policy(repository_root, ProofOutputPolicy::SuppressInTui)
+    }
+
+    fn with_output_policy(repository_root: PathBuf, output_policy: ProofOutputPolicy) -> Self {
+        let proof_runner = Box::new(CargoIncrementProofRunner::new(
+            repository_root.clone(),
+            output_policy,
+        ));
+
+        Self::with_runner(repository_root, proof_runner)
+    }
+
+    fn with_runner(repository_root: PathBuf, proof_runner: Box<dyn IncrementProofRunner>) -> Self {
+        Self {
+            repository_root,
+            proof_runner,
+        }
+    }
+
+    fn run_increment_contract_fix_proof(&self) -> CriticSignal {
+        match self
+            .proof_runner
+            .run_increment_contract_test("increment_adds_one_to_input")
+        {
+            Ok(true) => CriticSignal::Accepted,
+            Ok(false) => CriticSignal::RevisionRequired,
+            Err(()) => CriticSignal::Stop,
+        }
+    }
+
+    fn run_increment_contract_fix_and_zero_confirm_proof(&self) -> CriticSignal {
+        match self
+            .proof_runner
+            .run_increment_contract_test("increment_adds_one_to_input")
+        {
+            Ok(false) => return CriticSignal::RevisionRequired,
+            Ok(true) => {}
+            Err(()) => return CriticSignal::Stop,
+        }
+
+        match self
+            .proof_runner
+            .run_increment_contract_test("increment_adds_one_to_zero")
+        {
+            Ok(true) => CriticSignal::Accepted,
+            Ok(false) => CriticSignal::RevisionRequired,
+            Err(()) => CriticSignal::Stop,
+        }
     }
 }
 
@@ -243,70 +321,10 @@ impl Critic for ShellCritic {
         {
             match authority.critic_proof_rule {
                 Some(CriticProofRule::IncrementContractFix) => {
-                    let status = match self
-                        .proof_command()
-                        .args([
-                            "test",
-                            "--test",
-                            "increment_contract",
-                            "increment_adds_one_to_input",
-                            "--",
-                            "--exact",
-                        ])
-                        .status()
-                    {
-                        Ok(status) => status,
-                        Err(_) => return CriticSignal::Stop,
-                    };
-
-                    return if status.success() {
-                        CriticSignal::Accepted
-                    } else {
-                        CriticSignal::RevisionRequired
-                    };
+                    return self.run_increment_contract_fix_proof();
                 }
                 Some(CriticProofRule::IncrementContractFixAndZeroConfirm) => {
-                    let command_a_status = match self
-                        .proof_command()
-                        .args([
-                            "test",
-                            "--test",
-                            "increment_contract",
-                            "increment_adds_one_to_input",
-                            "--",
-                            "--exact",
-                        ])
-                        .status()
-                    {
-                        Ok(status) => status,
-                        Err(_) => return CriticSignal::Stop,
-                    };
-
-                    if !command_a_status.success() {
-                        return CriticSignal::RevisionRequired;
-                    }
-
-                    let command_b_status = match self
-                        .proof_command()
-                        .args([
-                            "test",
-                            "--test",
-                            "increment_contract",
-                            "increment_adds_one_to_zero",
-                            "--",
-                            "--exact",
-                        ])
-                        .status()
-                    {
-                        Ok(status) => status,
-                        Err(_) => return CriticSignal::Stop,
-                    };
-
-                    return if command_b_status.success() {
-                        CriticSignal::Accepted
-                    } else {
-                        CriticSignal::RevisionRequired
-                    };
+                    return self.run_increment_contract_fix_and_zero_confirm_proof();
                 }
                 None => {}
             }
@@ -346,6 +364,7 @@ impl Critic for ShellCritic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::{Cell, RefCell};
 
     #[test]
     fn increment_contract_fix_and_zero_confirm_prompt_admission_is_exact() {
@@ -382,5 +401,41 @@ mod tests {
             planner.decide(&scholar_output),
             SessionFlowDecision::RefuseUnderspecifiedDocumentPrompt,
         );
+    }
+
+    struct FakeProofRunner {
+        outcomes: RefCell<Vec<Result<bool, ()>>>,
+        calls: Cell<usize>,
+    }
+
+    impl FakeProofRunner {
+        fn new(outcomes: Vec<Result<bool, ()>>) -> Self {
+            Self {
+                outcomes: RefCell::new(outcomes),
+                calls: Cell::new(0),
+            }
+        }
+    }
+
+    impl IncrementProofRunner for FakeProofRunner {
+        fn run_increment_contract_test(&self, _test_name: &str) -> Result<bool, ()> {
+            self.calls.set(self.calls.get() + 1);
+
+            self.outcomes.borrow_mut().remove(0)
+        }
+    }
+
+    #[test]
+    fn critic_stops_when_increment_proof_runner_errors() {
+        let scholar_output = ScholarOutput::new(
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+            "Make the failing test 'increment_adds_one_to_input' in tests/increment_contract.rs pass by editing only src/lib.rs.",
+        );
+        let proof_runner = FakeProofRunner::new(vec![Err(())]);
+        let mut critic = ShellCritic::with_runner(PathBuf::from("."), Box::new(proof_runner));
+
+        let signal = critic.run(&scholar_output);
+
+        assert!(matches!(signal, CriticSignal::Stop));
     }
 }
