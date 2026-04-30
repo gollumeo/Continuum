@@ -6,6 +6,11 @@
 
 Continuum is currently a bounded local runtime around `codex exec` with a small set of repository-proven use cases.
 
+The binary currently has two exact entry paths:
+
+- no CLI argument -> bootstrap TUI shell
+- exactly one non-empty prompt argument -> runtime session execution
+
 The repo no longer proves only a single `README.md` generation path. It now proves a few exact, tightly-scoped runtime paths:
 
 - one-file `README.md` generation with explicit scope
@@ -21,9 +26,9 @@ What is proven today, and nothing more:
 
 - `cargo build` works.
 - The `continuum` binary runs locally.
-- The CLI accepts exactly one non-empty prompt argument.
+- The CLI accepts either no argument (bootstrap TUI) or exactly one non-empty prompt argument (runtime request).
 - The current repository root is resolved via `current_dir()`.
-- `main` builds a local shell runtime and runs a single `SessionRunner` session.
+- `main` routes to bootstrap TUI for empty args, or builds a local shell runtime for a single prompt session.
 - `SessionRunner` executes a bounded `Scholar -> Planner -> Builder -> Critic -> Planner` flow.
 - The runtime can complete in one pass or stop terminally on failure.
 - The runtime can perform one bounded retry for the currently admitted retrying use cases.
@@ -32,8 +37,11 @@ What is proven today, and nothing more:
 - The `Builder` captures `stdout` and `stderr` from `codex` and returns a `BuilderRunReport`.
 - The `Builder` checks the resulting file changes against the allowed scope using git status.
 - The local shell critic runs exact proof commands for the admitted increment-contract use cases.
+- Proof command output remains visible in terminal runtime mode and is suppressed only in the bootstrap TUI path.
 - The local shell critic performs a bounded content/existence check for the admitted two-file documentation sync use case.
 - The CLI renders terminal success and failure output including session status and builder report data.
+- The bootstrap TUI renders mission states, supports mission submission through the real runtime path, and keeps prompt focus local to the TUI surface.
+- The bootstrap TUI session list renders exact status markers (`[~]`, `[+]`, `[!]`) with selection prefix (`> `), and `Up`/`Down` selection remains clamped to visible rows.
 
 ## Exact Proven Use Cases
 
@@ -72,6 +80,7 @@ The current runtime is small but real:
 - the shell planner admits build execution for the currently proved bounded prompts and refuses the underspecified README prompt.
 - `CodexLocalBuilderAdapter` launches `codex exec` from the repository root with an explicit allowed file scope.
 - `ShellCritic` is local and exact-case-driven: it either runs the proved cargo commands for increment-contract prompts or validates the two-file documentation sync result.
+- `ShellCritic` applies an explicit proof-output policy so terminal runtime and bootstrap TUI use different proof-command output behavior without changing proof decisions.
 - runtime stop and retry handling is routed through `runtime_policy`.
 - exact increment runtime-use-case selection is centralized in `runtime_use_case_authority`.
 
